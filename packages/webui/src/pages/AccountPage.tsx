@@ -14,7 +14,6 @@ import type {
     WeiboBrowserStatus,
     WeiboCookieStatus,
     WeiboInstallState,
-    WeiboSubscription,
 } from '../types';
 import { noAuthFetch } from '../utils/api';
 import {
@@ -35,9 +34,6 @@ export default function AccountPage() {
     const [install, setInstall] = useState<WeiboInstallState | null>(
         null,
     );
-    const [subscriptions, setSubscriptions] = useState<
-        WeiboSubscription[]
-    >([]);
     const [result, setResult] = useState<CookieActionResult | null>(
         null,
     );
@@ -56,19 +52,6 @@ export default function AccountPage() {
         }
     }, []);
 
-    const fetchSubscriptions = useCallback(async () => {
-        try {
-            const res = await noAuthFetch<WeiboSubscription[]>(
-                '/weibo/subscriptions',
-            );
-            if (res.code === 0 && res.data) {
-                setSubscriptions(res.data);
-            }
-        } catch {
-            showToast('获取订阅列表失败', 'error');
-        }
-    }, []);
-
     const fetchInstall = useCallback(async () => {
         try {
             const res = await noAuthFetch<WeiboInstallState>(
@@ -81,14 +64,10 @@ export default function AccountPage() {
     }, []);
 
     useEffect(() => {
-        Promise.all([
-            fetchStatus(),
-            fetchSubscriptions(),
-            fetchInstall(),
-        ])
+        Promise.all([fetchStatus(), fetchInstall()])
             .then(() => setLoading(false))
             .catch(() => setLoading(false));
-    }, [fetchStatus, fetchSubscriptions, fetchInstall]);
+    }, [fetchStatus, fetchInstall]);
 
     useEffect(() => {
         if (!install?.running) return;
@@ -122,7 +101,7 @@ export default function AccountPage() {
             } else {
                 showToast(data.message, 'warning');
             }
-            await Promise.all([fetchStatus(), fetchSubscriptions()]);
+            await fetchStatus();
         } catch (error) {
             showToast(
                 error instanceof Error ? error.message : '保存失败',
@@ -199,22 +178,6 @@ export default function AccountPage() {
             );
         } finally {
             setBusy(false);
-        }
-    };
-
-    const removeTarget = async (
-        uid: string,
-        target: { type: 'group' | 'private'; id: string },
-    ) => {
-        try {
-            await noAuthFetch('/weibo/subscriptions/remove', {
-                method: 'POST',
-                body: JSON.stringify({ uid, ...target }),
-            });
-            showToast('已移除订阅', 'success');
-            await fetchSubscriptions();
-        } catch {
-            showToast('移除失败', 'error');
         }
     };
 
@@ -442,96 +405,6 @@ export default function AccountPage() {
                     </button>
                 </div>
             </section>
-
-            <section className="card overflow-hidden animate-fade-in-up">
-                <div className="p-5 pb-3">
-                    <h2 className="font-semibold text-sm">
-                        订阅列表
-                    </h2>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                        共 {subscriptions.length}{' '}
-                        个博主；移除只影响对应会话
-                    </p>
-                </div>
-
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="text-left text-xs text-gray-400 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-white/[0.02]">
-                            <th className="py-2.5 px-5 font-medium">
-                                博主
-                            </th>
-                            <th className="py-2.5 px-5 font-medium">
-                                UID
-                            </th>
-                            <th className="py-2.5 px-5 font-medium">
-                                订阅会话
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-                        {subscriptions.map((item) => (
-                            <tr key={item.uid}>
-                                <td className="py-3 px-5">
-                                    <div className="flex items-center gap-2.5">
-                                        <Avatar
-                                            src={item.avatar}
-                                            name={item.screenName}
-                                        />
-                                        <span className="font-medium">
-                                            {item.screenName}
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="py-3 px-5 font-mono text-xs text-gray-500">
-                                    {item.uid}
-                                </td>
-                                <td className="py-3 px-5">
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {item.targets.map(
-                                            (target) => (
-                                                <span
-                                                    key={`${target.type}:${target.id}`}
-                                                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500"
-                                                >
-                                                    {target.type ===
-                                                    'group'
-                                                        ? '群'
-                                                        : '私聊'}{' '}
-                                                    {target.id}
-                                                    <button
-                                                        type="button"
-                                                        className="text-gray-400 hover:text-red-500"
-                                                        aria-label="移除订阅"
-                                                        onClick={() =>
-                                                            removeTarget(
-                                                                item.uid,
-                                                                target,
-                                                            )
-                                                        }
-                                                    >
-                                                        <IconX
-                                                            size={11}
-                                                        />
-                                                    </button>
-                                                </span>
-                                            ),
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-
-                {subscriptions.length === 0 && (
-                    <div className="py-12 text-center text-gray-400 text-sm">
-                        暂无订阅，可在已启用的群聊中发送
-                        <span className="font-mono px-1">
-                            #weibo add UID
-                        </span>
-                    </div>
-                )}
-            </section>
         </div>
     );
 }
@@ -577,23 +450,6 @@ function InfoCell({
             >
                 {value}
             </div>
-        </div>
-    );
-}
-
-function Avatar({ src, name }: { src: string; name: string }) {
-    if (src) {
-        return (
-            <img
-                src={src}
-                alt={name}
-                className="w-8 h-8 rounded-full object-cover bg-gray-100"
-            />
-        );
-    }
-    return (
-        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
-            {name.slice(0, 1)}
         </div>
     );
 }

@@ -19,8 +19,10 @@
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { pluginState } from '../core/state';
 import { HELP_PANELS } from '../handlers/help/helpData.generated';
+import { WeiboCookieStore } from '../store/WeiboCookieStore';
+import { WeiboCursorStore } from '../store/WeiboCursorStore';
+import { WeiboMonitorStore } from '../store/WeiboMonitorStore';
 import type { PluginConfig, SessionType } from '../types';
-import { sessionConfigService } from './sessionConfigService';
 import {
     getInstallState,
     runInstall,
@@ -31,9 +33,8 @@ import {
     getBrowserStatus,
     invalidateBrowserStatus,
 } from './browser/status';
-import { WeiboCookieStore } from '../store/WeiboCookieStore';
-import { WeiboCursorStore } from '../store/WeiboCursorStore';
-import { WeiboMonitorStore } from '../store/WeiboMonitorStore';
+import { applyConfigSideEffects } from './configEffects';
+import { sessionConfigService } from './sessionConfigService';
 import { weiboCookieService } from './weibo/cookieService';
 import { weiboMonitorService } from './weibo/monitorService';
 import { weiboPollingService } from './weibo/pollingService';
@@ -86,10 +87,12 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
                     .json({ code: -1, message: '请求体为空' });
             }
             // 【必须】WebUI 提交属于外部输入, 走 replaceConfig 统一清洗后再落盘
+            const prev = pluginState.config;
             pluginState.replaceConfig({
-                ...pluginState.config,
+                ...prev,
                 ...body,
             } as PluginConfig);
+            await applyConfigSideEffects(prev, pluginState.config);
             ctx.logger.info('配置已保存');
             res.json({ code: 0, message: 'ok' });
         } catch (err) {
@@ -258,9 +261,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     /** 保存 Cookie 并校验; 成功后立即恢复轮询 */
     router.postNoAuth('/weibo/cookie', async (req, res) => {
         try {
-            const body = req.body as
-                | { cookie?: unknown }
-                | undefined;
+            const body = req.body as { cookie?: unknown } | undefined;
             if (typeof body?.cookie !== 'string' || !body.cookie) {
                 return res
                     .status(400)

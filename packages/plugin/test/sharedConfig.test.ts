@@ -59,6 +59,14 @@ describe('FIELDS 声明源', () => {
     it('指令前缀为 #weibo', () => {
         expect(COMMAND_PREFIX).toBe('#weibo');
     });
+
+    it('Chrome 路径字段仅在自建前端呈现', () => {
+        const field = FIELDS.find(
+            (item) =>
+                'key' in item && item.key === 'chromeExecutablePath',
+        );
+        expect(field?.scope).toBe('webui');
+    });
 });
 
 describe('getDefaultConfig: 从 FIELDS 派生', () => {

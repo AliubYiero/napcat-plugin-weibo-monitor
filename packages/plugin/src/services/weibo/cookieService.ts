@@ -15,6 +15,7 @@ import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
 import { parseCookieHeader } from '../../weibo/sanitize';
 import { browserService } from '../browser/service';
 import { weiboApiService } from './apiService';
+import { weiboRuntime } from './runtimeStatus';
 
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 const INVALID_NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -73,6 +74,7 @@ class WeiboCookieService {
 
     async clear(): Promise<void> {
         this.store.clear();
+        weiboRuntime.clearLastError();
         await browserService.close();
     }
 

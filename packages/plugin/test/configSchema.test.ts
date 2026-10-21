@@ -204,18 +204,21 @@ describe('buildConfigSchema 其余映射', () => {
         );
     });
 
-    it('微博配置映射为数字框与文本框', () => {
+    it('微博轮询间隔映射为数字框', () => {
         const byKey = new Map(
             schema
                 .filter((it) => it.key !== undefined)
                 .map((it) => [it.key, it]),
         );
-        expect(
-            byKey.get('weiboPollIntervalMinutes')?.type,
-        ).toBe('number');
-        expect(byKey.get('chromeExecutablePath')?.type).toBe(
-            'text',
+        expect(byKey.get('weiboPollIntervalMinutes')?.type).toBe(
+            'number',
         );
+    });
+
+    it('Chrome 路径仅在自建前端可见', () => {
+        expect(
+            schema.some((it) => it.key === 'chromeExecutablePath'),
+        ).toBe(false);
     });
 
     it('其余 kind 映射到对应控件', () => {

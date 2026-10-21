@@ -15,8 +15,21 @@ class WeiboRuntime {
     nextPollAt: number | null = null;
     backoffUntil: number | null = null;
     lastError: string | null = null;
+    lastErrorAt: number | null = null;
 
     private targets = new Map<string, TargetRuntime>();
+
+    /** 记录整轮失败 (单博主失败只进目标行) */
+    setLastError(message: string): void {
+        this.lastError = message;
+        this.lastErrorAt = Date.now();
+    }
+
+    /** 整轮恢复、停止或清除 Cookie 时清空 */
+    clearLastError(): void {
+        this.lastError = null;
+        this.lastErrorAt = null;
+    }
 
     getTarget(uid: string): TargetRuntime {
         let target = this.targets.get(uid);

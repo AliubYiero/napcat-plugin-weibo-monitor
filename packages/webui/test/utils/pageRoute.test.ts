@@ -13,6 +13,7 @@ describe('parsePage', () => {
     it('解析合法页面 id', () => {
         expect(parsePage('#/sessions')).toBe('sessions');
         expect(parsePage('#/help')).toBe('help');
+        expect(parsePage('#/subscriptions')).toBe('subscriptions');
     });
 
     it('多余路径段取首段', () => {

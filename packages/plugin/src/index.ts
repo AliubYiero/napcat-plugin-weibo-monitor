@@ -13,7 +13,6 @@
  *   plugin_config_ui          → 导出配置 Schema，用于 WebUI 自动生成配置面板
  *   plugin_get_config         → 自定义配置读取
  *   plugin_set_config         → 自定义配置保存
- *   plugin_on_config_change   → 配置变更回调
  *
  * @author Your Name
  * @license MIT
@@ -30,11 +29,9 @@ import { pluginState } from './core/state';
 import { handleMessage } from './handlers/messageHandler';
 import { EventType } from './onebotEvent';
 import { registerApiRoutes } from './services/apiService';
-import {
-    ensureBrowserStatus,
-    invalidateBrowserStatus,
-} from './services/browser/status';
 import { browserService } from './services/browser/service';
+import { ensureBrowserStatus } from './services/browser/status';
+import { applyConfigSideEffects } from './services/configEffects';
 import { weiboPollingService } from './services/weibo/pollingService';
 import type { PluginConfig } from './types';
 
@@ -133,35 +130,11 @@ export const plugin_get_config: PluginModule['plugin_get_config'] =
 /** 设置配置（完整替换，由 NapCat WebUI 调用） */
 export const plugin_set_config: PluginModule['plugin_set_config'] =
     async (ctx, config) => {
+        const prev = pluginState.config;
         pluginState.replaceConfig(config as PluginConfig);
+        // 【必须】两个配置入口都走同一份副作用, 避免显示值与运行状态分叉
+        await applyConfigSideEffects(prev, pluginState.config);
         ctx.logger.info('配置已通过 WebUI 更新');
-    };
-
-/**
- * 配置变更回调
- * 当 WebUI 中修改单个配置项时触发（需配置项标记 reactive: true）
- */
-export const plugin_on_config_change: PluginModule['plugin_on_config_change'] =
-    async (ctx, _ui, key, value, _currentConfig) => {
-        try {
-            // 【必须】WebUI 单个配置项变更同为外部输入, 经 replaceConfig 统一清洗
-            pluginState.replaceConfig({
-                ...pluginState.config,
-                [key]: value,
-            } as PluginConfig);
-
-            if (key === 'chromeExecutablePath') {
-                invalidateBrowserStatus();
-                ensureBrowserStatus();
-            }
-            if (key === 'weiboPollIntervalMinutes') {
-                weiboPollingService.reschedule();
-            }
-
-            ctx.logger.debug(`配置项 ${key} 已更新`);
-        } catch (err) {
-            ctx.logger.error(`更新配置项 ${key} 失败:`, err);
-        }
     };
 
 // ==================== 内部函数 ====================

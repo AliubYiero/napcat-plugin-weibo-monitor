@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { PAGE_LIST, type PageIconName, type PageId } from 'shared';
 import {
+    IconBell,
     IconDashboard,
     IconGithub,
     IconGroup,
@@ -25,6 +26,7 @@ const PAGE_ICONS: Record<
     group: IconGroup,
     help: IconHelp,
     account: IconKey,
+    subscription: IconBell,
 };
 
 const menuItems = [...PAGE_LIST]

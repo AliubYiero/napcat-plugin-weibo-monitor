@@ -71,6 +71,15 @@ describe('resolveDispatch: 注册表命中', () => {
             ).type,
         ).toBe('run');
     });
+
+    it('latest 允许无参与带参两种形态', () => {
+        expect(
+            resolveDispatch(['latest'], role('user')),
+        ).toMatchObject({ type: 'run', commands: [] });
+        expect(
+            resolveDispatch(['latest', '123456'], role('user')),
+        ).toMatchObject({ type: 'run', commands: ['123456'] });
+    });
 });
 
 describe('resolveDispatch: 静默路径 (防权限探测)', () => {

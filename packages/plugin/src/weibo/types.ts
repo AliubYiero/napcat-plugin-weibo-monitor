@@ -154,14 +154,30 @@ export interface WeiboTargetStatus {
     watermark: string | null;
 }
 
+/**
+ * 轮询状态 (当前处境的唯一答案)
+ *
+ * 由事实纯函数派生, 优先级固定; 状态不是错误记录, 错误另见 `lastError`。
+ */
+export type PollingState =
+    | 'stopped'
+    | 'unconfigured'
+    | 'invalid'
+    | 'backoff'
+    | 'idle'
+    | 'error'
+    | 'running';
+
 /** 轮询运行时状态 */
 export interface WeiboPollingStatus {
+    state: PollingState;
     running: boolean;
     intervalMinutes: number;
     lastPollAt: number | null;
     nextPollAt: number | null;
     backoffUntil: number | null;
     lastError: string | null;
+    lastErrorAt: number | null;
 }
 
 /** Cookie 运行时状态 (不返回 cookie 值) */

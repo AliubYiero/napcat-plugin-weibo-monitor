@@ -28,13 +28,25 @@ export interface PluginStatus {
     weibo: WeiboStatus;
 }
 
+/** 轮询状态 (与后端派生枚举一一对应) */
+export type PollingState =
+    | 'stopped'
+    | 'unconfigured'
+    | 'invalid'
+    | 'backoff'
+    | 'idle'
+    | 'error'
+    | 'running';
+
 export interface WeiboPollingStatus {
+    state: PollingState;
     running: boolean;
     intervalMinutes: number;
     lastPollAt: number | null;
     nextPollAt: number | null;
     backoffUntil: number | null;
     lastError: string | null;
+    lastErrorAt: number | null;
 }
 
 export interface WeiboCookieStatus {

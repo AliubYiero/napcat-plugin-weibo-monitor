@@ -10,6 +10,7 @@ import AccountPage from './pages/AccountPage';
 import HelpPage from './pages/HelpPage';
 import SessionsPage from './pages/SessionsPage';
 import StatusPage from './pages/StatusPage';
+import SubscriptionsPage from './pages/SubscriptionsPage';
 
 function App() {
     const [currentPage, setCurrentPage] = usePageRoute();
@@ -32,6 +33,8 @@ function App() {
         switch (currentPage) {
             case 'account':
                 return <AccountPage />;
+            case 'subscriptions':
+                return <SubscriptionsPage />;
             case 'sessions':
                 return <SessionsPage />;
             case 'help':

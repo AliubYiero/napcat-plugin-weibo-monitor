@@ -235,8 +235,6 @@ export const TRIGGER_MODE_OPTIONS: readonly ConfigOption[] = [
     { label: '@机器人 指令 参数', value: 'atBot' },
 ];
 
-
-
 /**
  * 配置字段声明 (唯一权威)
  *
@@ -308,8 +306,10 @@ export const FIELDS = [
         label: 'Chrome 可执行文件路径',
         description:
             '留空自动探测共享安装目录与系统 Chrome / Edge; 仅需手动指定时填写',
+        scope: 'webui',
         default: '',
-        placeholder: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        placeholder:
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     },
 ] as const satisfies readonly ConfigField[];
 

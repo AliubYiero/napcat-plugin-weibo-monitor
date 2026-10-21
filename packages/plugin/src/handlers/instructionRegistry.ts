@@ -109,7 +109,7 @@ export const rootInstructionSetMapper: Record<
     list: { handler: listHandler, scopeRules: [{ args: 0 }] },
     latest: {
         handler: latestHandler,
-        scopeRules: [{ args: 1 }],
+        scopeRules: [{ args: 0 }, { args: 1 }],
     },
     max: {
         handler: maxHandler,

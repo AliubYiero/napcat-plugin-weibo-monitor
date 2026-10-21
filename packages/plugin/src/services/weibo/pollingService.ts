@@ -9,7 +9,9 @@ import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import { WeiboCursorStore } from '../../store/WeiboCursorStore';
 import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
+import { resolvePollingState } from '../../weibo/pollingState';
 import { filterQualifiedPosts } from '../../weibo/predicate';
+import type { WeiboPollingStatus } from '../../weibo/types';
 import { resolveWatermark } from '../../weibo/watermark';
 import type { WeiboApiFailure } from './apiService';
 import { weiboApiService } from './apiService';
@@ -22,13 +24,10 @@ const BACKOFF_MS = 30 * 60 * 1000;
 const DEFAULT_INTERVAL_MINUTES = 60;
 const MIN_INTERVAL_MINUTES = 1;
 
-export interface PollingStatus {
-    running: boolean;
-    intervalMinutes: number;
-    lastPollAt: number | null;
-    nextPollAt: number | null;
-    backoffUntil: number | null;
-    lastError: string | null;
+interface PollOutcome {
+    ok: boolean;
+    failure: WeiboApiFailure;
+    message: string | null;
 }
 
 class WeiboPollingService {
@@ -50,6 +49,7 @@ class WeiboPollingService {
         this.started = false;
         weiboRuntime.running = false;
         weiboRuntime.nextPollAt = null;
+        weiboRuntime.clearLastError();
         if (this.timer) {
             clearTimeout(this.timer);
             this.timer = null;
@@ -69,14 +69,27 @@ class WeiboPollingService {
         this.schedule(this.intervalMinutes() * 60 * 1000);
     }
 
-    getStatus(): PollingStatus {
+    getStatus(): WeiboPollingStatus {
+        const cookie = WeiboCookieStore.getInstance().getData();
+        const subscriptionCount =
+            WeiboMonitorStore.getInstance().list().length;
+
         return {
+            state: resolvePollingState({
+                started: this.started,
+                hasCookies: cookie.cookies.length > 0,
+                invalid: cookie.invalid,
+                backoffUntil: weiboRuntime.backoffUntil,
+                subscriptionCount,
+                lastError: weiboRuntime.lastError,
+            }),
             running: weiboRuntime.running,
             intervalMinutes: this.intervalMinutes(),
             lastPollAt: weiboRuntime.lastPollAt,
             nextPollAt: weiboRuntime.nextPollAt,
             backoffUntil: weiboRuntime.backoffUntil,
             lastError: weiboRuntime.lastError,
+            lastErrorAt: weiboRuntime.lastErrorAt,
         };
     }
 
@@ -118,14 +131,14 @@ class WeiboPollingService {
 
             const cookie = WeiboCookieStore.getInstance().getData();
             if (cookie.cookies.length === 0) {
-                weiboRuntime.lastError = '未配置 Cookie';
+                weiboRuntime.clearLastError();
                 pluginState.logger.debug(
                     '微博轮询跳过: 尚未配置 Cookie',
                 );
                 return;
             }
             if (cookie.invalid) {
-                weiboRuntime.lastError = 'Cookie 已失效, 轮询已暂停';
+                weiboRuntime.clearLastError();
                 pluginState.logger.debug(
                     '微博轮询跳过: Cookie 已失效, 等待更新',
                 );
@@ -141,17 +154,34 @@ class WeiboPollingService {
             weiboRuntime.backoffUntil = null;
 
             const monitors = WeiboMonitorStore.getInstance().list();
+            if (monitors.length === 0) {
+                weiboRuntime.clearLastError();
+                return;
+            }
+
+            let succeeded = 0;
+            let failureMessage: string | null = null;
+            let terminalFailure: WeiboApiFailure = null;
+
             for (let index = 0; index < monitors.length; index += 1) {
                 if (!this.started) break;
-                const failure = await this.pollMonitor(
+                const outcome = await this.pollMonitor(
                     monitors[index],
                 );
 
-                if (failure === 'invalid') {
+                if (outcome.ok) {
+                    succeeded += 1;
+                } else if (outcome.message) {
+                    failureMessage = outcome.message;
+                }
+
+                if (outcome.failure === 'invalid') {
+                    terminalFailure = 'invalid';
                     await weiboCookieService.markInvalidAndNotify();
                     break;
                 }
-                if (failure === 'risk') {
+                if (outcome.failure === 'risk') {
+                    terminalFailure = 'risk';
                     this.enterBackoff();
                     break;
                 }
@@ -160,12 +190,19 @@ class WeiboPollingService {
                     await sleep(UID_INTERVAL_MS);
                 }
             }
+
+            // 「异常」只在整轮没有任何博主成功时成立; 失效与退避各有专属状态
+            if (succeeded > 0) {
+                weiboRuntime.clearLastError();
+            } else if (terminalFailure === null && failureMessage) {
+                weiboRuntime.setLastError(failureMessage);
+            }
         } catch (error) {
             const message =
                 error instanceof Error
                     ? error.message
                     : String(error);
-            weiboRuntime.lastError = message;
+            weiboRuntime.setLastError(message);
             pluginState.logger.error('微博轮询异常:', error);
         } finally {
             weiboRuntime.lastPollAt = Date.now();
@@ -188,18 +225,17 @@ class WeiboPollingService {
 
     private enterBackoff(): void {
         weiboRuntime.backoffUntil = Date.now() + BACKOFF_MS;
-        weiboRuntime.lastError = '微博接口风控, 30 分钟后重试';
         pluginState.logger.warn(
             '(；′⌒`) 微博接口触发风控, 退避 30 分钟',
         );
     }
 
-    /** @returns 失败类型; null 表示本轮该博主成功 */
+    /** @returns 是否成功、失败类型与错误文案 */
     private async pollMonitor(monitor: {
         uid: string;
         screenName: string;
         avatar: string;
-    }): Promise<WeiboApiFailure> {
+    }): Promise<PollOutcome> {
         const result = await weiboApiService.fetchMyMblog(
             monitor.uid,
         );
@@ -209,15 +245,13 @@ class WeiboPollingService {
                 result.message ||
                 `微博接口失败 (${result.failure ?? '未知'})`;
             weiboRuntime.setTargetError(monitor.uid, message);
-            weiboRuntime.lastError = message;
             pluginState.logger.warn(
                 `微博拉取失败 @${monitor.screenName} (${monitor.uid}): ${message}`,
             );
-            return result.failure;
+            return { ok: false, failure: result.failure, message };
         }
 
         weiboRuntime.clearTargetError(monitor.uid);
-        weiboRuntime.lastError = null;
 
         const qualified = filterQualifiedPosts(
             result.posts,
@@ -275,7 +309,9 @@ class WeiboPollingService {
         const currentMonitor = WeiboMonitorStore.getInstance().get(
             monitor.uid,
         );
-        if (!currentMonitor) return null;
+        if (!currentMonitor) {
+            return { ok: true, failure: null, message: null };
+        }
 
         for (const post of selection.posts) {
             await weiboPushService.pushPost(post, currentMonitor);
@@ -287,7 +323,7 @@ class WeiboPollingService {
             );
         }
 
-        return null;
+        return { ok: true, failure: null, message: null };
     }
 }
 

@@ -20,8 +20,8 @@ export const HELP_PANELS: Cmd[] = [
                         "desc": "查看本会话订阅的博主"
                     },
                     {
-                        "cmd": "#weibo latest <UID>",
-                        "desc": "获取该博主最新一条微博"
+                        "cmd": "#weibo latest [UID]",
+                        "desc": "获取博主最新一条微博; 不填 UID 时使用本会话唯一的订阅"
                     },
                     {
                         "cmd": "#weibo help",

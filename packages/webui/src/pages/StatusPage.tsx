@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useState,
+} from 'react';
 import ConfigForm, {
     type FieldRenderer,
 } from '../components/ConfigForm';
@@ -12,9 +17,15 @@ import {
     IconRefresh,
 } from '../components/Icons';
 import { showToast } from '../hooks/useToast';
-import type { PluginConfig, PluginStatus } from '../types';
+import type {
+    PluginConfig,
+    PluginStatus,
+    PollingState,
+    WeiboPollingStatus,
+} from '../types';
 import { noAuthFetch } from '../utils/api';
 import { formatRelative, formatTime } from '../utils/format';
+import { buildHash } from '../utils/pageRoute';
 
 interface StatusPageProps {
     status: PluginStatus | null;
@@ -42,6 +53,48 @@ function formatUptime(uptimeMs: number): string {
  * 例: adminUsers: MyAdminListEditor,
  */
 const FIELD_OVERRIDES: Record<string, FieldRenderer> = {};
+
+/** 轮询状态的短标签与配色 (统计卡用) */
+const POLLING_CARD: Record<
+    PollingState,
+    { label: string; color: string; bg: string }
+> = {
+    stopped: {
+        label: '已停止',
+        color: 'text-gray-500',
+        bg: 'bg-gray-500/10',
+    },
+    unconfigured: {
+        label: '未配置',
+        color: 'text-amber-500',
+        bg: 'bg-amber-500/10',
+    },
+    invalid: {
+        label: '已失效',
+        color: 'text-rose-500',
+        bg: 'bg-rose-500/10',
+    },
+    backoff: {
+        label: '退避中',
+        color: 'text-amber-500',
+        bg: 'bg-amber-500/10',
+    },
+    idle: {
+        label: '无订阅',
+        color: 'text-gray-500',
+        bg: 'bg-gray-500/10',
+    },
+    error: {
+        label: '异常',
+        color: 'text-rose-500',
+        bg: 'bg-rose-500/10',
+    },
+    running: {
+        label: '运行中',
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-500/10',
+    },
+};
 
 export default function StatusPage({ status }: StatusPageProps) {
     const [displayUptime, setDisplayUptime] = useState<string>('-');
@@ -135,13 +188,7 @@ export default function StatusPage({ status }: StatusPageProps) {
 
     const { stats, weibo } = status;
 
-    const pollingLabel = weibo.cookie.invalid
-        ? '已暂停'
-        : weibo.polling.backoffUntil
-          ? '退避中'
-          : weibo.polling.running
-            ? '运行中'
-            : '已停止';
+    const pollingCard = POLLING_CARD[weibo.polling.state];
 
     const statCards = [
         {
@@ -174,10 +221,10 @@ export default function StatusPage({ status }: StatusPageProps) {
         },
         {
             label: '轮询状态',
-            value: pollingLabel,
+            value: pollingCard.label,
             icon: <IconRefresh size={18} />,
-            color: 'text-emerald-500',
-            bg: 'bg-emerald-500/10',
+            color: pollingCard.color,
+            bg: pollingCard.bg,
         },
         {
             label: '微博 Cookie',
@@ -234,12 +281,7 @@ export default function StatusPage({ status }: StatusPageProps) {
                     </div>
                 </div>
 
-                {weibo.polling.lastError && (
-                    <div className="mb-3 flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
-                        <IconAlert size={14} />
-                        <span>{weibo.polling.lastError}</span>
-                    </div>
-                )}
+                <PollingStateNotice polling={weibo.polling} />
 
                 {weibo.targets.length === 0 ? (
                     <p className="py-6 text-center text-sm text-gray-400">
@@ -339,4 +381,88 @@ export default function StatusPage({ status }: StatusPageProps) {
             )}
         </div>
     );
+}
+
+const NOTICE_TONE = {
+    neutral: 'bg-gray-100 dark:bg-gray-800 text-gray-500',
+    warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    danger: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+} as const;
+
+function Notice({
+    tone,
+    children,
+}: {
+    tone: keyof typeof NOTICE_TONE;
+    children: ReactNode;
+}) {
+    return (
+        <div
+            className={`mb-3 flex items-start gap-2 text-xs rounded-lg px-3 py-2 ${NOTICE_TONE[tone]}`}
+        >
+            <IconAlert size={14} className="mt-0.5 flex-shrink-0" />
+            <span>{children}</span>
+        </div>
+    );
+}
+
+/** 当前轮询处境的说明与下一步入口 (运行中时不占位) */
+function PollingStateNotice({
+    polling,
+}: {
+    polling: WeiboPollingStatus;
+}) {
+    const accountLink = (
+        <a
+            href={buildHash('account')}
+            className="underline hover:no-underline"
+        >
+            去账号页
+        </a>
+    );
+
+    switch (polling.state) {
+        case 'stopped':
+            return <Notice tone="neutral">轮询未运行。</Notice>;
+        case 'unconfigured':
+            return (
+                <Notice tone="warning">
+                    尚未配置 Cookie，轮询无法开始。{accountLink}
+                </Notice>
+            );
+        case 'invalid':
+            return (
+                <Notice tone="danger">
+                    Cookie 已失效，轮询已暂停。{accountLink}
+                    更新后自动恢复。
+                </Notice>
+            );
+        case 'backoff':
+            return (
+                <Notice tone="warning">
+                    微博接口触发风控，将于{' '}
+                    {formatTime(polling.backoffUntil)} 重试。
+                </Notice>
+            );
+        case 'idle':
+            return (
+                <Notice tone="neutral">
+                    尚未订阅博主，可在已启用的群聊中发送
+                    <span className="font-mono px-1">
+                        #weibo add UID
+                    </span>
+                </Notice>
+            );
+        case 'error':
+            return (
+                <Notice tone="danger">
+                    {polling.lastError}
+                    {polling.lastErrorAt
+                        ? `（${formatTime(polling.lastErrorAt)}）`
+                        : ''}
+                </Notice>
+            );
+        default:
+            return null;
+    }
 }

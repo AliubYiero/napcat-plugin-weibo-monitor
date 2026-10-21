@@ -15,8 +15,8 @@ export const weiboHelp: Cmd = {
             instructions: [
                 { cmd: '#weibo list', desc: '查看本会话订阅的博主' },
                 {
-                    cmd: '#weibo latest <UID>',
-                    desc: '获取该博主最新一条微博',
+                    cmd: '#weibo latest [UID]',
+                    desc: '获取博主最新一条微博; 不填 UID 时使用本会话唯一的订阅',
                 },
                 { cmd: '#weibo help', desc: '显示本帮助' },
             ],
@@ -25,7 +25,10 @@ export const weiboHelp: Cmd = {
             groupName: '订阅管理',
             isAdmin: true,
             instructions: [
-                { cmd: '#weibo add <UID>', desc: '订阅博主 (需数字 UID)' },
+                {
+                    cmd: '#weibo add <UID>',
+                    desc: '订阅博主 (需数字 UID)',
+                },
                 { cmd: '#weibo remove <UID>', desc: '取消订阅博主' },
             ],
         },

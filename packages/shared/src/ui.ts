@@ -16,7 +16,8 @@ export type PageIconName =
     | 'settings'
     | 'group'
     | 'help'
-    | 'account';
+    | 'account'
+    | 'subscription';
 
 export interface PageMeta {
     /** 页面唯一标识, 同时是 webui 的 PageId */
@@ -45,9 +46,16 @@ export const PAGES = [
     {
         id: 'account',
         title: '账号',
-        description: '微博 Cookie、浏览器与订阅管理',
+        description: '微博 Cookie 与浏览器',
         icon: 'account',
         order: 20,
+    },
+    {
+        id: 'subscriptions',
+        title: '订阅',
+        description: '查看博主订阅关系与推送目标',
+        icon: 'subscription',
+        order: 25,
     },
     {
         id: 'sessions',
