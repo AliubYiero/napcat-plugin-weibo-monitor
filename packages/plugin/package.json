@@ -1,7 +1,7 @@
 {
-    "name": "napcat-plugin-template",
-    "plugin": "NapCat 插件模板",
-    "description": "",
+    "name": "napcat-plugin-weibo-monitor",
+    "plugin": "微博动态监听",
+    "description": "按 UID 订阅微博博主，定时拉取新动态并渲染为长图推送到 QQ 群 / 私聊",
     "version": "1.0.0",
     "type": "module",
     "main": "index.mjs",
@@ -11,14 +11,18 @@
         "napcat",
         "plugin",
         "qq",
-        "template"
+        "weibo",
+        "monitor"
     ],
     "napcat": {
         "tags": [
             "工具"
         ],
         "minVersion": "4.14.0",
-        "homepage": "https://github.com/AliubYiero/napcat-plugin-template"
+        "homepage": "https://github.com/AliubYiero/napcat-plugin-weibo-monitor"
+    },
+    "dependencies": {
+        "playwright-core": "^1.63.0"
     },
     "devDependencies": {
         "@rollup/plugin-node-resolve": "^15.3.1",

@@ -21,6 +21,23 @@ import { pluginState } from '../core/state';
 import { HELP_PANELS } from '../handlers/help/helpData.generated';
 import type { PluginConfig, SessionType } from '../types';
 import { sessionConfigService } from './sessionConfigService';
+import {
+    getInstallState,
+    runInstall,
+} from './browser/chrome-installer';
+import {
+    detectBrowserFull,
+    ensureBrowserStatus,
+    getBrowserStatus,
+    invalidateBrowserStatus,
+} from './browser/status';
+import { WeiboCookieStore } from '../store/WeiboCookieStore';
+import { WeiboCursorStore } from '../store/WeiboCursorStore';
+import { WeiboMonitorStore } from '../store/WeiboMonitorStore';
+import { weiboCookieService } from './weibo/cookieService';
+import { weiboMonitorService } from './weibo/monitorService';
+import { weiboPollingService } from './weibo/pollingService';
+import { weiboRuntime } from './weibo/runtimeStatus';
 
 /** 会话类型守卫: 收窄外部输入, 供路由复用 */
 function isSessionType(value: unknown): value is SessionType {
@@ -45,6 +62,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
                 uptimeFormatted: pluginState.getUptimeFormatted(),
                 config: pluginState.config,
                 stats: pluginState.stats,
+                weibo: buildWeiboStatus(),
             },
         });
     });
@@ -235,7 +253,165 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
         res.json({ code: 0, data: HELP_PANELS });
     });
 
-    // TODO: 在这里添加你的自定义 API 路由
+    // ==================== 微博账号与订阅（无鉴权）====================
+
+    /** 保存 Cookie 并校验; 成功后立即恢复轮询 */
+    router.postNoAuth('/weibo/cookie', async (req, res) => {
+        try {
+            const body = req.body as
+                | { cookie?: unknown }
+                | undefined;
+            if (typeof body?.cookie !== 'string' || !body.cookie) {
+                return res
+                    .status(400)
+                    .json({ code: -1, message: 'Cookie 不能为空' });
+            }
+
+            const result = await weiboCookieService.save(body.cookie);
+            if (result.valid) {
+                weiboPollingService.requestImmediate();
+            }
+            res.json({ code: 0, data: result });
+        } catch (err) {
+            ctx.logger.error('保存微博 Cookie 失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 校验当前 Cookie */
+    router.postNoAuth('/weibo/cookie/validate', async (_req, res) => {
+        try {
+            const result = await weiboCookieService.validate();
+            res.json({ code: 0, data: result });
+        } catch (err) {
+            ctx.logger.error('校验微博 Cookie 失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 清除 Cookie */
+    router.deleteNoAuth('/weibo/cookie', async (_req, res) => {
+        try {
+            await weiboCookieService.clear();
+            res.json({ code: 0, message: 'ok' });
+        } catch (err) {
+            ctx.logger.error('清除微博 Cookie 失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 全部订阅 (WebUI 只读列表) */
+    router.getNoAuth('/weibo/subscriptions', (_req, res) => {
+        res.json({ code: 0, data: weiboMonitorService.all() });
+    });
+
+    /** 从指定会话移除订阅 */
+    router.postNoAuth('/weibo/subscriptions/remove', (req, res) => {
+        try {
+            const body = req.body as
+                | { uid?: unknown; type?: unknown; id?: unknown }
+                | undefined;
+            if (
+                typeof body?.uid !== 'string' ||
+                !isSessionType(body.type) ||
+                typeof body.id !== 'string' ||
+                !body.id
+            ) {
+                return res
+                    .status(400)
+                    .json({ code: -1, message: '参数错误' });
+            }
+
+            const removed = weiboMonitorService.remove(body.uid, {
+                type: body.type,
+                id: body.id,
+            });
+            if (!removed) {
+                return res
+                    .status(404)
+                    .json({ code: -1, message: '订阅不存在' });
+            }
+            res.json({ code: 0, message: 'ok' });
+        } catch (err) {
+            ctx.logger.error('移除微博订阅失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    // ==================== 浏览器（无鉴权）====================
+
+    /** 只读缓存, 零副作用 (WebUI 每 5 秒轮询) */
+    router.getNoAuth('/chrome/status', (_req, res) => {
+        res.json({ code: 0, data: ensureBrowserStatus() });
+    });
+
+    /** 完整检测 (会启动一次浏览器) */
+    router.postNoAuth('/chrome/detect', async (_req, res) => {
+        try {
+            const status = await detectBrowserFull();
+            res.json({ code: 0, data: status });
+        } catch (err) {
+            ctx.logger.error('浏览器检测失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 后台安装浏览器 */
+    router.postNoAuth('/chrome/install', (_req, res) => {
+        if (getInstallState().running) {
+            return res
+                .status(409)
+                .json({ code: -1, message: '安装已在进行中' });
+        }
+
+        void runInstall()
+            .then(() => {
+                invalidateBrowserStatus();
+                ensureBrowserStatus();
+                ctx.logger.info('Chrome 安装完成');
+            })
+            .catch((err) => {
+                ctx.logger.error('Chrome 安装失败:', err);
+            });
+
+        res.json({ code: 0, message: '安装已开始' });
+    });
+
+    /** 安装进度 */
+    router.getNoAuth('/chrome/install/progress', (_req, res) => {
+        res.json({ code: 0, data: getInstallState() });
+    });
 
     ctx.logger.debug('API 路由注册完成');
+}
+
+function buildWeiboStatus(): Record<string, unknown> {
+    const monitors = WeiboMonitorStore.getInstance().list();
+    const cookie = WeiboCookieStore.getInstance().getData();
+    const cursorStore = WeiboCursorStore.getInstance();
+
+    return {
+        polling: weiboPollingService.getStatus(),
+        cookie: {
+            configured: cookie.cookies.length > 0,
+            invalid: cookie.invalid,
+            lastSuccessAt: cookie.lastSuccessAt,
+            lastValidatedAt: cookie.lastValidatedAt,
+            lastRefreshAt: cookie.lastRefreshAt,
+        },
+        browser: getBrowserStatus(),
+        subscriptions: monitors.length,
+        targets: monitors.map((monitor) => {
+            const runtime = weiboRuntime.getTarget(monitor.uid);
+            return {
+                uid: monitor.uid,
+                screenName: monitor.screenName,
+                subscribers: monitor.to.length,
+                watermark:
+                    cursorStore.get(monitor.uid)?.watermark ?? null,
+                lastError: runtime.lastError,
+                lastPushedAt: runtime.lastPushedAt,
+            };
+        }),
+    };
 }

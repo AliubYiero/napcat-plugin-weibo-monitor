@@ -6,6 +6,7 @@ import ToastContainer from './components/ToastContainer';
 import { usePageRoute } from './hooks/usePageRoute';
 import { useStatus } from './hooks/useStatus';
 import { useTheme } from './hooks/useTheme';
+import AccountPage from './pages/AccountPage';
 import HelpPage from './pages/HelpPage';
 import SessionsPage from './pages/SessionsPage';
 import StatusPage from './pages/StatusPage';
@@ -29,6 +30,8 @@ function App() {
 
     const renderPage = () => {
         switch (currentPage) {
+            case 'account':
+                return <AccountPage />;
             case 'sessions':
                 return <SessionsPage />;
             case 'help':

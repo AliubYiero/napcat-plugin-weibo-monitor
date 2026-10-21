@@ -15,9 +15,9 @@ import { HELP_TEXT_MAP } from './helpText.generated';
 
 /** 帮助图片文件名 (纯命名映射, 内容见 src/assets/) */
 const HELP_IMAGE = {
-    user: 'template-help-User.png',
-    admin: 'template-help-Admin.png',
-    superAdmin: 'template-help-SuperAdmin.png',
+    user: 'weibo-help-User.png',
+    admin: 'weibo-help-Admin.png',
+    superAdmin: 'weibo-help-SuperAdmin.png',
 } as const;
 
 export const helpHandler: InstructionHandler = async (

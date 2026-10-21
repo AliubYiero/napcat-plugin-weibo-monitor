@@ -45,7 +45,7 @@ function role(
 
 describe('resolveDispatch: 注册表命中', () => {
     it('一级指令命中, 参数切掉指令名', () => {
-        const decision = resolveDispatch(['ping'], role('user'));
+        const decision = resolveDispatch(['help'], role('user'));
         expect(decision).toMatchObject({ type: 'run', commands: [] });
     });
 
@@ -61,7 +61,7 @@ describe('resolveDispatch: 注册表命中', () => {
     });
 
     it('指令名不区分大小写', () => {
-        expect(resolveDispatch(['PING'], role('user')).type).toBe(
+        expect(resolveDispatch(['HELP'], role('user')).type).toBe(
             'run',
         );
         expect(

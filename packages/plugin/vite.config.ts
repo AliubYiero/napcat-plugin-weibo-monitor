@@ -1,11 +1,12 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import { builtinModules } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodeResolve from '@rollup/plugin-node-resolve';
 // @ts-expect-error
 import { napcatHmrPlugin } from 'napcat-plugin-debug-cli/vite';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../..');
@@ -15,8 +16,54 @@ const nodeModules = [
     ...builtinModules.map((m) => `node:${m}`),
 ].flat();
 
-// 依赖排除（如有外部依赖需排除，在此添加）
-const external: string[] = [];
+const external: string[] = ['bufferutil', 'utf-8-validate', 'kerberos'];
+
+const INSPECTOR_STUB = `
+const loadInspector = () => require('inspector');
+export default {
+    url: ( ...args ) => loadInspector().url( ...args ),
+    open: ( ...args ) => loadInspector().open( ...args ),
+    close: ( ...args ) => loadInspector().close( ...args ),
+    Session: class Session {
+        constructor( ...args ) { return new ( loadInspector().Session )( ...args ); }
+    },
+};
+`;
+
+const STUB_MODULES: Record<string, string> = {
+    'chromium-bidi/lib/cjs/bidiMapper/BidiMapper': 'export default {};',
+    'chromium-bidi/lib/cjs/cdp/CdpConnection': 'export default {};',
+    electron: 'export default {};',
+    'electron/index.js': 'export default {};',
+    inspector: INSPECTOR_STUB,
+};
+
+const bundleShim = [
+    `import { createRequire as __ncpCreateRequire } from 'node:module';`,
+    `import { fileURLToPath as __ncpFileURLToPath } from 'node:url';`,
+    `import { dirname as __ncpDirname, join as __ncpJoin } from 'node:path';`,
+    `const __filename = __ncpFileURLToPath(import.meta.url);`,
+    `const require = __ncpCreateRequire(import.meta.url);`,
+    `const __dirname = __ncpJoin(__ncpDirname(__filename), 'lib');`,
+].join('\n');
+
+function stubOptionalDeps(): Plugin {
+    const STUB_PREFIX = '\0napcat-plugin:stub:';
+    return {
+        name: 'stub-optional-deps',
+        enforce: 'pre',
+        resolveId(source) {
+            return source in STUB_MODULES
+                ? STUB_PREFIX + source
+                : null;
+        },
+        load(id) {
+            return id.startsWith(STUB_PREFIX)
+                ? (STUB_MODULES[id.slice(STUB_PREFIX.length)] ?? null)
+                : null;
+        },
+    };
+}
 
 // dev 部署身份标注（--mode deploy-dev）
 // 以新 id 注册为独立插件, 不覆盖远程正在运行的正式插件
@@ -115,7 +162,40 @@ function copyAssetsPlugin(isDevDeploy: boolean) {
                     }
                 }
 
-                // 3. 复制 templates 目录（如果存在）
+                // 3. 复制 playwright-core 的 browsers.json
+                //    内联后 playwright 仍在加载期按 packageRoot 读取它，
+                //    缺失会在 import 阶段直接抛 MODULE_NOT_FOUND。
+                try {
+                    const pwCoreDir = dirname(
+                        createRequire(import.meta.url).resolve(
+                            'playwright-core',
+                        ),
+                    );
+                    const browsersJson = resolve(
+                        pwCoreDir,
+                        'browsers.json',
+                    );
+                    if (fs.existsSync(browsersJson)) {
+                        fs.copyFileSync(
+                            browsersJson,
+                            resolve(distDir, 'browsers.json'),
+                        );
+                        console.log(
+                            "[copy-assets] (o'v'o) 已复制 playwright-core browsers.json",
+                        );
+                    } else {
+                        console.error(
+                            `[copy-assets] (;_;) 未找到 ${browsersJson}`,
+                        );
+                    }
+                } catch (error) {
+                    console.error(
+                        '[copy-assets] (;_;) 复制 browsers.json 失败:',
+                        error,
+                    );
+                }
+
+                // 4. 复制 templates 目录（如果存在）
                 const templatesSrc = resolve(__dirname, 'templates');
                 if (fs.existsSync(templatesSrc)) {
                     copyDirRecursive(
@@ -127,7 +207,7 @@ function copyAssetsPlugin(isDevDeploy: boolean) {
                     );
                 }
 
-                // 4. 复制帮助图片资源（由 pnpm run help:generate 产出）
+                // 5. 复制帮助图片资源（由 pnpm run help:generate 产出）
                 const assetsSrc = resolve(__dirname, 'src/assets');
                 if (fs.existsSync(assetsSrc)) {
                     copyDirRecursive(
@@ -175,20 +255,40 @@ export default defineConfig(({ mode }) => {
             sourcemap: false,
             target: 'esnext',
             minify: false,
+            // playwright-core 是 CJS 包，必须让 commonjs 插件覆盖 node_modules
+            // 才能内联；动态 require 原样保留，由产物顶部 shim 接管。
+            commonjsOptions: {
+                include: [/node_modules/],
+                transformMixedEsModules: true,
+                defaultIsModuleExports: true,
+                ignoreDynamicRequires: true,
+            },
             lib: {
                 entry: resolve(__dirname, 'src/index.ts'),
                 formats: ['es'],
                 fileName: () => 'index.mjs',
             },
             rollupOptions: {
-                external: [...nodeModules, ...external],
+                external: [
+                    ...nodeModules.filter(
+                        (m) =>
+                            !(m in STUB_MODULES) &&
+                            !(
+                                m.startsWith('node:') &&
+                                m.slice(5) in STUB_MODULES
+                            ),
+                    ),
+                    ...external,
+                ],
                 output: {
                     inlineDynamicImports: true,
+                    banner: bundleShim,
                 },
             },
             outDir: 'dist',
         },
         plugins: [
+            stubOptionalDeps(),
             nodeResolve(),
             copyAssetsPlugin(isDevDeploy),
             ...(isDeploy

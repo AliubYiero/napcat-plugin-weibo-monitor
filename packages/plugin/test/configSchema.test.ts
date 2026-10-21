@@ -107,7 +107,7 @@ describe('buildConfigSchema 分组布局', () => {
             .map((it) => htmlOf(it));
         expect(titles).toHaveLength(2);
         expect(titles[0]).toContain('基础配置');
-        expect(titles[1]).toContain('示例字段');
+        expect(titles[1]).toContain('微博监听');
     });
 
     it('分组标题带副标题, 且位于对应字段之前', () => {
@@ -123,13 +123,13 @@ describe('buildConfigSchema 分组布局', () => {
         const demo = schema.find(
             (it) =>
                 htmlOf(it).includes(SECTION_TITLE_MARK) &&
-                htmlOf(it).includes('示例字段'),
+                htmlOf(it).includes('微博监听'),
         );
         expect(htmlOf(demo as FakeItem)).toContain(
             'napcat-plugin-section-desc',
         );
         expect(htmlOf(demo as FakeItem)).toContain(
-            '本行即 section 的 description',
+            '轮询周期与浏览器路径',
         );
     });
 
@@ -204,19 +204,18 @@ describe('buildConfigSchema 其余映射', () => {
         );
     });
 
-    it('password(both) 渲染为禁用的引导输入框, 右侧按钮指向自建前端仪表盘', () => {
-        const hint = schema.find(
-            (it) =>
-                it.type === 'html' &&
-                it.content?.includes('#/status') === true,
+    it('微博配置映射为数字框与文本框', () => {
+        const byKey = new Map(
+            schema
+                .filter((it) => it.key !== undefined)
+                .map((it) => [it.key, it]),
         );
-        expect(hint).toBeDefined();
-        expect(hint?.content).toContain(
-            '/plugin/test-plugin/page/dashboard#/status',
+        expect(
+            byKey.get('weiboPollIntervalMinutes')?.type,
+        ).toBe('number');
+        expect(byKey.get('chromeExecutablePath')?.type).toBe(
+            'text',
         );
-        expect(hint?.content).toContain('示例密钥');
-        expect(hint?.content).toContain('disabled');
-        expect(hint?.content).not.toContain('{{');
     });
 
     it('其余 kind 映射到对应控件', () => {
@@ -226,13 +225,6 @@ describe('buildConfigSchema 其余映射', () => {
                 .map((it) => [it.key, it]),
         );
         expect(byKey.get('adminUsers')?.type).toBe('text');
-        expect(byKey.get('exampleBoolean')?.type).toBe('boolean');
-        expect(byKey.get('exampleText')?.type).toBe('text');
-        expect(byKey.get('exampleNumber')?.type).toBe('number');
-        expect(byKey.get('exampleSelect')?.type).toBe('select');
-        expect(byKey.get('exampleMultiSelect')?.type).toBe(
-            'multi-select',
-        );
     });
 
     it('display 横幅解析占位符', () => {

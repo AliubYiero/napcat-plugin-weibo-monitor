@@ -76,10 +76,16 @@ export function resolveDispatch(
     let scope = definition.scope;
 
     // 形态化作用域规则: 命中即用其门槛, 未命中静默 (权限防线闭合, 无穿透路径)
+    // 同一参数个数可声明多条按来源会话区分的规则 (群 admin / 私聊超管),
+    // 优先取 scope 与当前来源一致者, 其次取未限定 scope 的兜底规则。
     if (definition.scopeRules?.length) {
-        const rule = definition.scopeRules.find(
+        const candidates = definition.scopeRules.filter(
             (r) => r.args === rest.length,
         );
+        const rule =
+            candidates.find(
+                (r) => r.scope === userRole.from.type,
+            ) ?? candidates.find((r) => !r.scope);
         if (!rule) return { type: 'silent' };
         requiredRole = rule.requiredRole;
         scope = rule.scope;

@@ -4,12 +4,17 @@ import ConfigForm, {
 } from '../components/ConfigForm';
 import {
     IconActivity,
+    IconAlert,
     IconClock,
     IconDownload,
+    IconGroup,
+    IconKey,
+    IconRefresh,
 } from '../components/Icons';
 import { showToast } from '../hooks/useToast';
 import type { PluginConfig, PluginStatus } from '../types';
 import { noAuthFetch } from '../utils/api';
+import { formatRelative, formatTime } from '../utils/format';
 
 interface StatusPageProps {
     status: PluginStatus | null;
@@ -128,7 +133,15 @@ export default function StatusPage({ status }: StatusPageProps) {
         );
     }
 
-    const { stats } = status;
+    const { stats, weibo } = status;
+
+    const pollingLabel = weibo.cookie.invalid
+        ? '已暂停'
+        : weibo.polling.backoffUntil
+          ? '退避中'
+          : weibo.polling.running
+            ? '运行中'
+            : '已停止';
 
     const statCards = [
         {
@@ -151,6 +164,31 @@ export default function StatusPage({ status }: StatusPageProps) {
             icon: <IconDownload size={18} />,
             color: 'text-violet-500',
             bg: 'bg-violet-500/10',
+        },
+        {
+            label: '订阅博主',
+            value: String(weibo.subscriptions),
+            icon: <IconGroup size={18} />,
+            color: 'text-sky-500',
+            bg: 'bg-sky-500/10',
+        },
+        {
+            label: '轮询状态',
+            value: pollingLabel,
+            icon: <IconRefresh size={18} />,
+            color: 'text-emerald-500',
+            bg: 'bg-emerald-500/10',
+        },
+        {
+            label: '微博 Cookie',
+            value: !weibo.cookie.configured
+                ? '未配置'
+                : weibo.cookie.invalid
+                  ? '已失效'
+                  : '可用',
+            icon: <IconKey size={18} />,
+            color: 'text-rose-500',
+            bg: 'bg-rose-500/10',
         },
     ];
 
@@ -178,6 +216,99 @@ export default function StatusPage({ status }: StatusPageProps) {
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* 微博运行状态 */}
+            <div className="card p-5 animate-fade-in-up">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <h2 className="font-semibold text-sm">
+                        微博运行状态
+                    </h2>
+                    <div className="text-xs text-gray-400">
+                        上次轮询{' '}
+                        {formatRelative(weibo.polling.lastPollAt)}
+                        <span className="px-2">·</span>
+                        下次 {formatTime(weibo.polling.nextPollAt)}
+                        <span className="px-2">·</span>
+                        间隔 {weibo.polling.intervalMinutes} 分钟
+                    </div>
+                </div>
+
+                {weibo.polling.lastError && (
+                    <div className="mb-3 flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+                        <IconAlert size={14} />
+                        <span>{weibo.polling.lastError}</span>
+                    </div>
+                )}
+
+                {weibo.targets.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-gray-400">
+                        暂无订阅，可在已启用的群聊中发送
+                        <span className="font-mono px-1">
+                            #weibo add UID
+                        </span>
+                    </p>
+                ) : (
+                    <div className="overflow-x-auto -mx-5">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-xs text-gray-400 border-b border-gray-100 dark:border-gray-800">
+                                    <th className="py-2 px-5 font-medium">
+                                        博主
+                                    </th>
+                                    <th className="py-2 px-5 font-medium">
+                                        UID
+                                    </th>
+                                    <th className="py-2 px-5 font-medium">
+                                        会话
+                                    </th>
+                                    <th className="py-2 px-5 font-medium">
+                                        最后推送
+                                    </th>
+                                    <th className="py-2 px-5 font-medium">
+                                        状态
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                                {weibo.targets.map((target) => (
+                                    <tr key={target.uid}>
+                                        <td className="py-2.5 px-5 font-medium">
+                                            {target.screenName}
+                                        </td>
+                                        <td className="py-2.5 px-5 font-mono text-xs text-gray-500">
+                                            {target.uid}
+                                        </td>
+                                        <td className="py-2.5 px-5 text-xs text-gray-500">
+                                            {target.subscribers}
+                                        </td>
+                                        <td className="py-2.5 px-5 text-xs text-gray-500">
+                                            {formatRelative(
+                                                target.lastPushedAt,
+                                            )}
+                                        </td>
+                                        <td className="py-2.5 px-5 text-xs">
+                                            {target.lastError ? (
+                                                <span
+                                                    className="text-amber-600 dark:text-amber-400"
+                                                    title={
+                                                        target.lastError
+                                                    }
+                                                >
+                                                    异常
+                                                </span>
+                                            ) : (
+                                                <span className="text-emerald-600 dark:text-emerald-400">
+                                                    正常
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {/* 配置分组 (由 FIELDS 的 section 切分为多张卡片) */}

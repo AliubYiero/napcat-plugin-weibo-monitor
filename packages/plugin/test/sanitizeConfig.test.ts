@@ -30,15 +30,17 @@ describe('sanitizeConfig: 输入整体非法', () => {
 
 describe('sanitizeConfig: 标量', () => {
     it('类型不符时保留默认值', () => {
-        const out = sanitizeConfig({ exampleBoolean: 'no' });
-        expect(out.exampleBoolean).toBe(
-            DEFAULT_CONFIG.exampleBoolean,
+        const out = sanitizeConfig({ chromeExecutablePath: 123 });
+        expect(out.chromeExecutablePath).toBe(
+            DEFAULT_CONFIG.chromeExecutablePath,
         );
     });
 
     it('类型正确时采纳外部值', () => {
-        const out = sanitizeConfig({ exampleBoolean: true });
-        expect(out.exampleBoolean).toBe(true);
+        const out = sanitizeConfig({
+            chromeExecutablePath: 'C:\\chrome.exe',
+        });
+        expect(out.chromeExecutablePath).toBe('C:\\chrome.exe');
     });
 });
 

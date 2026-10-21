@@ -30,6 +30,12 @@ import { pluginState } from './core/state';
 import { handleMessage } from './handlers/messageHandler';
 import { EventType } from './onebotEvent';
 import { registerApiRoutes } from './services/apiService';
+import {
+    ensureBrowserStatus,
+    invalidateBrowserStatus,
+} from './services/browser/status';
+import { browserService } from './services/browser/service';
+import { weiboPollingService } from './services/weibo/pollingService';
 import type { PluginConfig } from './types';
 
 // ==================== 配置 UI Schema ====================
@@ -60,6 +66,10 @@ export const plugin_init: PluginModule['plugin_init'] = async (
 
         // 4. 注册 API 路由
         registerApiRoutes(ctx);
+
+        // 5. 浏览器状态缓存与微博轮询
+        ensureBrowserStatus();
+        weiboPollingService.start();
 
         ctx.logger.info('插件初始化完成');
     } catch (error) {
@@ -102,7 +112,9 @@ export const plugin_cleanup: PluginModule['plugin_cleanup'] = async (
     ctx,
 ) => {
     try {
-        // TODO: 在这里清理你的资源（定时器、WebSocket 连接等）
+        // 先停轮询, 再强制关闭浏览器 (不等待上下文优雅收尾)
+        weiboPollingService.stop();
+        browserService.dispose();
         pluginState.cleanup();
         ctx.logger.info('插件已卸载');
     } catch (e) {
@@ -137,6 +149,15 @@ export const plugin_on_config_change: PluginModule['plugin_on_config_change'] =
                 ...pluginState.config,
                 [key]: value,
             } as PluginConfig);
+
+            if (key === 'chromeExecutablePath') {
+                invalidateBrowserStatus();
+                ensureBrowserStatus();
+            }
+            if (key === 'weiboPollIntervalMinutes') {
+                weiboPollingService.reschedule();
+            }
+
             ctx.logger.debug(`配置项 ${key} 已更新`);
         } catch (err) {
             ctx.logger.error(`更新配置项 ${key} 失败:`, err);

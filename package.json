@@ -1,17 +1,17 @@
 {
-    "name": "napcat-plugin-template-monorepo",
+    "name": "napcat-plugin-weibo-monitor-monorepo",
     "private": true,
     "version": "1.0.0",
     "type": "module",
     "scripts": {
-        "build": "pnpm --filter webui build && pnpm --filter napcat-plugin-template build",
-        "deploy": "pnpm --filter webui build && pnpm --filter napcat-plugin-template deploy",
-        "deploy:dev": "pnpm --filter webui build && pnpm --filter napcat-plugin-template deploy:dev",
+        "build": "pnpm --filter webui build && pnpm --filter napcat-plugin-weibo-monitor build",
+        "deploy": "pnpm --filter webui build && pnpm --filter napcat-plugin-weibo-monitor deploy",
+        "deploy:dev": "pnpm --filter webui build && pnpm --filter napcat-plugin-weibo-monitor deploy:dev",
         "dev:webui": "pnpm --filter webui dev",
         "test": "pnpm -r test",
         "typecheck": "pnpm -r typecheck",
         "check": "pnpm typecheck && pnpm test",
-        "help:generate": "pnpm --filter napcat-plugin-template help:generate",
+        "help:generate": "pnpm --filter napcat-plugin-weibo-monitor help:generate",
         "format": "biome format --write"
     },
     "devDependencies": {

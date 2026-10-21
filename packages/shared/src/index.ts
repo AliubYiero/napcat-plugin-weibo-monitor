@@ -40,7 +40,12 @@ export interface SessionConfigBase {
 export interface SessionConfig extends SessionConfigBase {
     /** 是否启用此会话的功能，默认关闭 */
     enabled?: boolean;
-    // TODO: 在这里添加会话级别的配置项
+
+    /**
+     * 本会话可订阅的微博博主数量上限。
+     * 未写入时按默认值推导: 群聊 1, 私聊 0 (超管私聊不设上限)。
+     */
+    weiboLimit?: number;
 }
 
 // ==================== API 响应 ====================

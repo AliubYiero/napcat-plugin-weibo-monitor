@@ -25,6 +25,70 @@ export interface PluginStatus {
         todayProcessed: number;
         lastUpdateDay: string;
     };
+    weibo: WeiboStatus;
+}
+
+export interface WeiboPollingStatus {
+    running: boolean;
+    intervalMinutes: number;
+    lastPollAt: number | null;
+    nextPollAt: number | null;
+    backoffUntil: number | null;
+    lastError: string | null;
+}
+
+export interface WeiboCookieStatus {
+    configured: boolean;
+    invalid: boolean;
+    lastSuccessAt: number | null;
+    lastValidatedAt: number | null;
+    lastRefreshAt: number | null;
+}
+
+export interface WeiboBrowserStatus {
+    available: boolean;
+    source: 'configured' | 'shared' | 'system' | 'none';
+    executablePath: string | null;
+    version: string | null;
+    installed: boolean;
+    error: string | null;
+}
+
+export interface WeiboTargetStatus {
+    uid: string;
+    screenName: string;
+    subscribers: number;
+    watermark: string | null;
+    lastError: string | null;
+    lastPushedAt: number | null;
+}
+
+export interface WeiboStatus {
+    polling: WeiboPollingStatus;
+    cookie: WeiboCookieStatus;
+    browser: WeiboBrowserStatus;
+    subscriptions: number;
+    targets: WeiboTargetStatus[];
+}
+
+export interface WeiboSubscription {
+    uid: string;
+    screenName: string;
+    avatar: string;
+    targets: Array<{ type: 'group' | 'private'; id: string }>;
+}
+
+export interface CookieActionResult {
+    valid: boolean;
+    message: string;
+}
+
+export interface WeiboInstallState {
+    running: boolean;
+    percent: number;
+    message: string;
+    error: string | null;
+    path: string | null;
 }
 
 /**

@@ -182,7 +182,7 @@ export type ConfigField = ConfigValueField | ConfigLayoutField;
  * 【必须】前缀不再暴露给用户修改, 只作为插件内部常量使用;
  * 后端解析、帮助生成等所有需要前缀处一律引用本常量。
  */
-export const COMMAND_PREFIX = '#cmd';
+export const COMMAND_PREFIX = '#weibo';
 
 /**
  * 插件主配置接口
@@ -205,20 +205,17 @@ export interface PluginConfig {
      */
     triggerModes: TriggerMode[];
 
-    // ==== 示例字段: 演示各 kind, 开新项目时请连同 PluginConfig 键一并删除 ====
-    /** boolean 示例 */
-    exampleBoolean: boolean;
-    /** text 示例 */
-    exampleText: string;
-    /** password 示例 (原生面板显示跳转引导) */
-    examplePassword: string;
-    /** number 示例 */
-    exampleNumber: number;
-    /** select 示例 */
-    exampleSelect: string;
-    /** multiSelect 示例 */
-    exampleMultiSelect: string[];
-    // TODO: 在这里添加你的插件配置项 (同时在 FIELDS 添加同 key 描述符)
+    /**
+     * 微博轮询间隔 (分钟)。最小 1, 最大 1440。
+     * 插件启动与订阅成功后各立即拉取一轮, 之后按本周期执行。
+     */
+    weiboPollIntervalMinutes: number;
+
+    /**
+     * Chrome / Edge 可执行文件路径。留空时自动探测共享安装目录与系统浏览器。
+     * 只在用户显式指定时填写——手填路径会被优先采用。
+     */
+    chromeExecutablePath: string;
 }
 
 // ==================== 字段声明 ====================
@@ -238,12 +235,7 @@ export const TRIGGER_MODE_OPTIONS: readonly ConfigOption[] = [
     { label: '@机器人 指令 参数', value: 'atBot' },
 ];
 
-/** 示例字段的候选项 (select / multiSelect 共用, 演示"候选值抽常量") */
-const EXAMPLE_OPTIONS: readonly ConfigOption[] = [
-    { label: '选项 A', value: 'a' },
-    { label: '选项 B', value: 'b' },
-    { label: '选项 C', value: 'c' },
-];
+
 
 /**
  * 配置字段声明 (唯一权威)
@@ -294,63 +286,30 @@ export const FIELDS = [
     // 可选 kind: boolean / text / password / number / select / multiSelect / stringList
     //            section (分组标题) / display (纯展示, content 为 HTML)
 
-    // ==== 示例字段: 演示各 kind, 开新项目时请整段删除 (含 PluginConfig 对应键) ====
     {
         kind: 'section',
-        label: '示例字段',
-        description:
-            '演示各 kind 的呈现; 开新项目后请连同本分组删除 (本行即 section 的 description)',
+        label: '微博监听',
+        description: '轮询周期与浏览器路径',
     },
     {
-        key: 'exampleBoolean',
-        kind: 'boolean',
-        label: '示例开关',
-        description: 'boolean 类型：开 / 关',
-        default: false,
-    },
-    {
-        key: 'exampleText',
-        kind: 'text',
-        label: '示例文本',
-        description: 'text 类型：单行文本输入',
-        default: '',
-        placeholder: '请输入文本',
-    },
-    {
-        key: 'examplePassword',
-        kind: 'password',
-        label: '示例密钥',
-        description:
-            'password 类型：自建前端显示密码框，原生面板显示跳转引导',
-        scope: 'both',
-        default: '',
-        placeholder: '请输入密钥',
-    },
-    {
-        key: 'exampleNumber',
+        key: 'weiboPollIntervalMinutes',
         kind: 'number',
-        label: '示例数值',
-        description: 'number 类型：区间 0–100',
-        default: 10,
-        min: 0,
-        max: 100,
+        label: '轮询间隔 (分钟)',
+        description:
+            '最小 1 分钟, 最大 1440 分钟; 启动与订阅成功后各立即拉取一轮',
+        default: 60,
+        min: 1,
+        max: 1440,
         step: 1,
     },
     {
-        key: 'exampleSelect',
-        kind: 'select',
-        label: '示例单选',
-        description: 'select 类型：从候选中单选',
-        default: 'a',
-        options: EXAMPLE_OPTIONS,
-    },
-    {
-        key: 'exampleMultiSelect',
-        kind: 'multiSelect',
-        label: '示例多选',
-        description: 'multiSelect 类型：可多选，空数组合法',
-        default: ['a'],
-        options: EXAMPLE_OPTIONS,
+        key: 'chromeExecutablePath',
+        kind: 'text',
+        label: 'Chrome 可执行文件路径',
+        description:
+            '留空自动探测共享安装目录与系统 Chrome / Edge; 仅需手动指定时填写',
+        default: '',
+        placeholder: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     },
 ] as const satisfies readonly ConfigField[];
 

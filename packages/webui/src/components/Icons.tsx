@@ -519,6 +519,29 @@ export function IconEyeOff({
     );
 }
 
+/** 钥匙/账号 */
+export function IconKey({ size, className }: IconProps = defaultProps) {
+    return (
+        <svg
+            aria-hidden="true"
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            <circle cx="7.5" cy="15.5" r="4.5" />
+            <path d="m10.7 12.3 8.3-8.3" />
+            <path d="m17 6 2 2" />
+            <path d="m14 9 2 2" />
+        </svg>
+    );
+}
+
 /** 帮助/文档 (翻开的书) */
 export function IconHelp({
     size,

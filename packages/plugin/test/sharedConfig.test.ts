@@ -1,13 +1,6 @@
-/**
- * 配置单一声明源: 派生正确性
- *
- * 范式: docs/webui-config-pattern.md
- * 覆盖 shared/src/config.ts 的三条派生链: FIELDS → 默认值 / 清洗 / codec。
- * 字段级清洗容错规则见 sanitize-config.test.ts。
- */
-
 import type { ConfigField } from 'shared';
 import {
+    COMMAND_PREFIX,
     FIELDS,
     getDefaultConfig,
     parseStringList,
@@ -18,17 +11,12 @@ import { describe, expect, it } from 'vitest';
 const EXPECTED_KEYS = [
     'adminUsers',
     'triggerModes',
-    'exampleBoolean',
-    'exampleText',
-    'examplePassword',
-    'exampleNumber',
-    'exampleSelect',
-    'exampleMultiSelect',
+    'weiboPollIntervalMinutes',
+    'chromeExecutablePath',
 ];
 
 type ValueField = Extract<(typeof FIELDS)[number], { key: string }>;
 
-/** 遍历视图: as const 字面量元组不含未声明的可选属性 scope */
 const FIELDS_ALL: readonly ConfigField[] = FIELDS;
 
 describe('FIELDS 声明源', () => {
@@ -68,14 +56,8 @@ describe('FIELDS 声明源', () => {
         }
     });
 
-    it('password 字段的 scope 只允许 webui / both', () => {
-        for (const field of FIELDS_ALL) {
-            if (!('key' in field)) continue;
-            if (field.kind !== 'password') continue;
-            if (field.scope) {
-                expect(['webui', 'both']).toContain(field.scope);
-            }
-        }
+    it('指令前缀为 #weibo', () => {
+        expect(COMMAND_PREFIX).toBe('#weibo');
     });
 });
 
@@ -86,12 +68,8 @@ describe('getDefaultConfig: 从 FIELDS 派生', () => {
         expect(a).toEqual({
             adminUsers: [],
             triggerModes: ['prefix', 'atBot'],
-            exampleBoolean: false,
-            exampleText: '',
-            examplePassword: '',
-            exampleNumber: 10,
-            exampleSelect: 'a',
-            exampleMultiSelect: ['a'],
+            weiboPollIntervalMinutes: 60,
+            chromeExecutablePath: '',
         });
         expect(a).not.toBe(b);
         expect(a.adminUsers).not.toBe(b.adminUsers);
@@ -114,13 +92,13 @@ describe('parseStringList codec', () => {
     });
 });
 
-describe('sanitizeConfig: 从 kind 派生 (代表用例)', () => {
+describe('sanitizeConfig: 从 kind 派生', () => {
     it('整体非法回退默认', () => {
         expect(sanitizeConfig(null)).toEqual(getDefaultConfig());
         expect(sanitizeConfig([1, 2])).toEqual(getDefaultConfig());
     });
 
-    it('stringList: 逗号串/数组容错, 空数组合法, 类型不符回退默认', () => {
+    it('stringList: 逗号与数组容错, 空数组合法, 类型不符回退默认', () => {
         expect(
             sanitizeConfig({ adminUsers: '1, 2' }).adminUsers,
         ).toEqual(['1', '2']);
@@ -135,10 +113,19 @@ describe('sanitizeConfig: 从 kind 派生 (代表用例)', () => {
         ).toEqual([]);
     });
 
-    it('boolean: 显式 false 是语义, 不回退默认', () => {
+    it('number: 越界钳制, 非法回退默认', () => {
         expect(
-            sanitizeConfig({ exampleBoolean: false }).exampleBoolean,
-        ).toBe(false);
+            sanitizeConfig({ weiboPollIntervalMinutes: 0 })
+                .weiboPollIntervalMinutes,
+        ).toBe(1);
+        expect(
+            sanitizeConfig({ weiboPollIntervalMinutes: 9999 })
+                .weiboPollIntervalMinutes,
+        ).toBe(1440);
+        expect(
+            sanitizeConfig({ weiboPollIntervalMinutes: '60' })
+                .weiboPollIntervalMinutes,
+        ).toBe(60);
     });
 
     it('已移除的字段 (enabled/commandPrefix) 被丢弃', () => {

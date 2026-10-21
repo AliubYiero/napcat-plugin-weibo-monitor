@@ -51,6 +51,37 @@ class SessionConfigService {
             ids.map((id) => ({ id, type, config: { enabled } })),
         );
     }
+
+    /**
+     * 本会话的订阅上限。
+     *
+     * 优先读显式配置; 未配置或值非法时用调用方给的默认值
+     * (群聊 1, 私聊 0; 超管私聊由上层跳过上限检查)。
+     */
+    getWeiboLimit(
+        id: string,
+        type: SessionType,
+        fallback: number,
+    ): number {
+        const value = this.store.find(id, type)?.weiboLimit;
+        return typeof value === 'number' &&
+            Number.isInteger(value) &&
+            value >= 0
+            ? value
+            : fallback;
+    }
+
+    /** 设置本会话的订阅上限 (只允许非负整数) */
+    setWeiboLimit(
+        id: string,
+        type: SessionType,
+        limit: number,
+    ): void {
+        if (!Number.isInteger(limit) || limit < 0) {
+            throw new Error('订阅上限必须是非负整数');
+        }
+        this.store.setMany([{ id, type, config: { weiboLimit: limit } }]);
+    }
 }
 
 export const sessionConfigService = new SessionConfigService();

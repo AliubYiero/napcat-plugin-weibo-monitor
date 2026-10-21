@@ -24,7 +24,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Cmd, Role } from './cmd.ts';
-import { templateHelp } from './cmds/templateHelp.ts';
+import { weiboHelp } from './cmds/weiboHelp.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -43,7 +43,7 @@ const CMD_TARGETS: {
     handlerDir: string;
 }[] = [
     {
-        cmd: templateHelp,
+        cmd: weiboHelp,
         handlerDir: join(PLUGIN_ROOT, 'src/handlers/commands'),
     },
 ];

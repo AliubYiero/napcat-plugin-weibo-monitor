@@ -17,9 +17,12 @@
 import type { OB11Message } from 'napcat-types/napcat-onebot';
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import type { UserRole, UserRoleName } from '../core/admin';
+import { addHandler } from './commands/addHandler';
 import { helpHandler } from './commands/helpHandler';
-import { pingHandler } from './commands/pingHandler';
-import { statusHandler } from './commands/statusHandler';
+import { latestHandler } from './commands/latestHandler';
+import { listHandler } from './commands/listHandler';
+import { maxHandler } from './commands/maxHandler';
+import { removeHandler } from './commands/removeHandler';
 
 /**
  * 指令 handler
@@ -88,7 +91,32 @@ export const rootInstructionSetMapper: Record<
     string,
     InstructionDefinition
 > = {
-    help: { handler: helpHandler },
-    ping: { handler: pingHandler },
-    status: { handler: statusHandler },
+    help: { handler: helpHandler, scopeRules: [{ args: 0 }] },
+    add: {
+        handler: addHandler,
+        scopeRules: [
+            { args: 1, scope: 'group', requiredRole: 'admin' },
+            { args: 1, scope: 'private', requiredRole: 'superAdmin' },
+        ],
+    },
+    remove: {
+        handler: removeHandler,
+        scopeRules: [
+            { args: 1, scope: 'group', requiredRole: 'admin' },
+            { args: 1, scope: 'private', requiredRole: 'superAdmin' },
+        ],
+    },
+    list: { handler: listHandler, scopeRules: [{ args: 0 }] },
+    latest: {
+        handler: latestHandler,
+        scopeRules: [{ args: 1 }],
+    },
+    max: {
+        handler: maxHandler,
+        scopeRules: [
+            { args: 0, scope: 'group', requiredRole: 'admin' },
+            { args: 0, scope: 'private', requiredRole: 'superAdmin' },
+            { args: 1, scope: 'group', requiredRole: 'superAdmin' },
+        ],
+    },
 };

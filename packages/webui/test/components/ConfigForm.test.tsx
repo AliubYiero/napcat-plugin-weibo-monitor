@@ -1,12 +1,4 @@
-// @vitest-environment happy-dom
-/**
- * ConfigForm 组件行为
- *
- * 范式: docs/webui-config-pattern.md 的声明式配置表单。
- * 合同: 按 FIELDS 的 section 切成多张卡片; 每张卡按 kind 渲染控件;
- *       过滤 scope='panel'; 布局 / 展示字段不落盘; onChange 冒泡字段 key;
- *       overrides 按 key 覆盖。
- */
+﻿// @vitest-environment happy-dom
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentType } from 'react';
@@ -38,31 +30,28 @@ describe('ConfigForm', () => {
             screen
                 .getAllByRole('heading', { level: 3 })
                 .map((heading) => heading.textContent),
-        ).toEqual(['基础配置', '示例字段']);
+        ).toEqual(['基础配置', '微博监听']);
     });
 
     it('渲染 section 的 description 作为卡片副标题', () => {
         renderForm();
         expect(
-            screen.getByText(
-                '演示各 kind 的呈现; 开新项目后请连同本分组删除 (本行即 section 的 description)',
-            ),
+            screen.getByText('轮询周期与浏览器路径'),
         ).toBeInTheDocument();
     });
 
     it('按 kind 渲染各字段控件', () => {
         renderForm();
-        expect(screen.getByText('示例开关')).toBeInTheDocument();
-        expect(
-            screen.getByPlaceholderText('请输入文本'),
-        ).toBeInTheDocument();
-        expect(
-            screen.getByPlaceholderText('请输入密钥'),
-        ).toBeInTheDocument();
         expect(
             screen.getByPlaceholderText('输入 QQ 号后按回车添加'),
         ).toBeInTheDocument();
         expect(screen.getByText('指令触发方式')).toBeInTheDocument();
+        expect(screen.getByText('轮询间隔 (分钟)')).toBeInTheDocument();
+        expect(
+            screen.getByPlaceholderText(
+                'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            ),
+        ).toBeInTheDocument();
     });
 
     it('过滤 scope=panel 的仅原生面板字段', () => {
@@ -78,18 +67,21 @@ describe('ConfigForm', () => {
 
     it('控件变更冒泡字段 key', () => {
         const { onChange } = renderForm();
-        fireEvent.click(screen.getByRole('checkbox'));
-        expect(onChange).toHaveBeenCalledWith('exampleBoolean', true);
+        fireEvent.change(screen.getByRole('spinbutton'), {
+            target: { value: '120' },
+        });
+        fireEvent.blur(screen.getByRole('spinbutton'));
+        expect(onChange).toHaveBeenCalledWith(
+            'weiboPollIntervalMinutes',
+            120,
+        );
     });
 
     it('overrides 按 key 覆盖渲染', () => {
         const Override = ({ value }: FieldRenderProps) => (
             <div data-testid="override">{String(value)}</div>
         );
-        renderForm({ exampleText: Override });
+        renderForm({ chromeExecutablePath: Override });
         expect(screen.getByTestId('override')).toBeInTheDocument();
-        expect(
-            screen.queryByPlaceholderText('请输入文本'),
-        ).toBeNull();
     });
 });

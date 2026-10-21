@@ -18,10 +18,10 @@ const admin: ConfigField = {
 };
 
 const booleanField: ConfigField = {
-    key: 'exampleBoolean',
-    kind: 'boolean',
-    label: '示例开关',
-    default: false,
+    key: 'weiboPollIntervalMinutes',
+    kind: 'number',
+    label: '轮询间隔',
+    default: 60,
 };
 
 const display: ConfigField = {
@@ -67,13 +67,13 @@ describe('groupFields section 分隔语义', () => {
                 section('示例字段'),
                 booleanField,
             ]),
-        ).toEqual([['adminUsers'], ['exampleBoolean']]);
+        ).toEqual([['adminUsers'], ['weiboPollIntervalMinutes']]);
     });
 
     it('display 跟随当前组, 不单独成组也不打断分组', () => {
         expect(
             keys([admin, display, section('示例字段'), booleanField]),
-        ).toEqual([['adminUsers', null], ['exampleBoolean']]);
+        ).toEqual([['adminUsers', null], ['weiboPollIntervalMinutes']]);
     });
 
     it('section 的 description 透传给分组', () => {
@@ -137,7 +137,7 @@ describe('groupFields scope 过滤', () => {
             scope: 'panel',
         };
         expect(keys([admin, panelOnly, booleanField])).toEqual([
-            ['adminUsers', 'exampleBoolean'],
+            ['adminUsers', 'weiboPollIntervalMinutes'],
         ]);
     });
 });

@@ -15,7 +15,8 @@ export type PageIconName =
     | 'dashboard'
     | 'settings'
     | 'group'
-    | 'help';
+    | 'help'
+    | 'account';
 
 export interface PageMeta {
     /** 页面唯一标识, 同时是 webui 的 PageId */
@@ -42,18 +43,25 @@ export const PAGES = [
         order: 10,
     },
     {
+        id: 'account',
+        title: '账号',
+        description: '微博 Cookie、浏览器与订阅管理',
+        icon: 'account',
+        order: 20,
+    },
+    {
         id: 'sessions',
         title: '会话管理',
         description: '管理群聊与好友的启用与禁用',
         icon: 'group',
-        order: 20,
+        order: 30,
     },
     {
         id: 'help',
         title: '帮助文档',
         description: '查看插件支持的全部指令与使用说明',
         icon: 'help',
-        order: 30,
+        order: 40,
     },
 ] as const satisfies readonly PageMeta[];
 

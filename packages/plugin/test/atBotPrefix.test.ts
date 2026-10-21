@@ -15,14 +15,14 @@ const SELF = '268491285';
 describe('stripAtBotPrefix', () => {
     it('剥离消息开头匹配 selfId 的 at 段', () => {
         expect(
-            stripAtBotPrefix(`[CQ:at,qq=${SELF}] #cmd ping`, SELF),
-        ).toBe(' #cmd ping');
+            stripAtBotPrefix(`[CQ:at,qq=${SELF}] #weibo ping`, SELF),
+        ).toBe(' #weibo ping');
     });
 
     it('CQ 标记大小写不敏感', () => {
         expect(
-            stripAtBotPrefix(`[cq:AT,qq=${SELF}] #cmd ping`, SELF),
-        ).toBe(' #cmd ping');
+            stripAtBotPrefix(`[cq:AT,qq=${SELF}] #weibo ping`, SELF),
+        ).toBe(' #weibo ping');
     });
 
     it('qq 值允许双引号、单引号或裸值', () => {
@@ -88,9 +88,9 @@ describe('stripAtBotPrefix', () => {
 describe('resolveTriggerCommand', () => {
     it('prefix: 以指令前缀开头时命中, 返回前缀后的参数文本', () => {
         expect(
-            resolveTriggerCommand('#cmd ping', SELF, ['prefix']),
+            resolveTriggerCommand('#weibo ping', SELF, ['prefix']),
         ).toBe(' ping');
-        expect(resolveTriggerCommand('#cmd', SELF, ['prefix'])).toBe(
+        expect(resolveTriggerCommand('#weibo', SELF, ['prefix'])).toBe(
             '',
         );
     });
@@ -98,7 +98,7 @@ describe('resolveTriggerCommand', () => {
     it('prefix: 带 @机器人 的普通前缀消息不命中 (不以指令前缀开头)', () => {
         expect(
             resolveTriggerCommand(
-                `[CQ:at,qq=${SELF}] #cmd ping`,
+                `[CQ:at,qq=${SELF}] #weibo ping`,
                 SELF,
                 ['prefix'],
             ),
@@ -108,7 +108,7 @@ describe('resolveTriggerCommand', () => {
     it('atBot: 剥离 @机器人 后仍带前缀才命中', () => {
         expect(
             resolveTriggerCommand(
-                `[CQ:at,qq=${SELF}] #cmd ping`,
+                `[CQ:at,qq=${SELF}] #weibo ping`,
                 SELF,
                 ['atBot'],
             ),
@@ -117,7 +117,7 @@ describe('resolveTriggerCommand', () => {
 
     it('atBot: 未带 @机器人 的普通前缀消息不命中 (严格独立)', () => {
         expect(
-            resolveTriggerCommand('#cmd ping', SELF, ['atBot']),
+            resolveTriggerCommand('#weibo ping', SELF, ['atBot']),
         ).toBeNull();
     });
 
@@ -131,14 +131,14 @@ describe('resolveTriggerCommand', () => {
 
     it('both: 两种形态都命中', () => {
         expect(
-            resolveTriggerCommand('#cmd ping', SELF, [
+            resolveTriggerCommand('#weibo ping', SELF, [
                 'prefix',
                 'atBot',
             ]),
         ).toBe(' ping');
         expect(
             resolveTriggerCommand(
-                `[CQ:at,qq=${SELF}] #cmd ping`,
+                `[CQ:at,qq=${SELF}] #weibo ping`,
                 SELF,
                 ['prefix', 'atBot'],
             ),
@@ -147,11 +147,11 @@ describe('resolveTriggerCommand', () => {
 
     it('none: 未启用任何触发方式时恒不命中', () => {
         expect(
-            resolveTriggerCommand('#cmd ping', SELF, []),
+            resolveTriggerCommand('#weibo ping', SELF, []),
         ).toBeNull();
         expect(
             resolveTriggerCommand(
-                `[CQ:at,qq=${SELF}] #cmd ping`,
+                `[CQ:at,qq=${SELF}] #weibo ping`,
                 SELF,
                 [],
             ),
@@ -161,7 +161,7 @@ describe('resolveTriggerCommand', () => {
     it('atBot: selfId 缺失时无法剥离, 不命中', () => {
         expect(
             resolveTriggerCommand(
-                `[CQ:at,qq=${SELF}] #cmd ping`,
+                `[CQ:at,qq=${SELF}] #weibo ping`,
                 '',
                 ['atBot'],
             ),
@@ -170,7 +170,7 @@ describe('resolveTriggerCommand', () => {
 
     it('整体 trim 后再判定', () => {
         expect(
-            resolveTriggerCommand('  #cmd ping  ', SELF, ['prefix']),
+            resolveTriggerCommand('  #weibo ping  ', SELF, ['prefix']),
         ).toBe(' ping');
     });
 });
