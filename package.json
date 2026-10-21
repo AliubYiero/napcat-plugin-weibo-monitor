@@ -11,6 +11,7 @@
         "test": "pnpm -r test",
         "typecheck": "pnpm -r typecheck",
         "check": "pnpm typecheck && pnpm test",
+        "weibo:test": "pnpm --filter napcat-plugin-weibo-monitor weibo:test",
         "help:generate": "pnpm --filter napcat-plugin-weibo-monitor help:generate",
         "format": "biome format --write"
     },

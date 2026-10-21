@@ -17,6 +17,7 @@
         "src/**/*.ts",
         "src/**/*.json",
         "test/**/*.ts",
+        "scripts/weiboTest/**/*.ts",
         "vite.config.ts",
         "vitest.config.ts"
     ],

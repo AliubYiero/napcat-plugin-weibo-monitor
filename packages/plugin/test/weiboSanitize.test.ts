@@ -4,6 +4,7 @@ import {
     htmlToText,
     parseCookieHeader,
     sanitizeWeiboHtml,
+    sanitizeWeiboText,
 } from '../src/weibo/sanitize';
 
 describe('parseCookieHeader', () => {
@@ -90,6 +91,81 @@ describe('sanitizeWeiboHtml', () => {
 
     it('文本节点被转义', () => {
         expect(sanitizeWeiboHtml('a &lt; b')).toBe('a &lt; b');
+    });
+});
+
+describe('sanitizeWeiboText', () => {
+    it('表情图按 title 转为方括号文本, 不过滤中括号', () => {
+        const html =
+            '前<img alt="[可爱]" title="[可爱]" ' +
+            'src="https://face.t.sinajs.cn/t4/appstyle/expression/ext/normal/78/201810_keai_mobile.png" />后';
+        expect(sanitizeWeiboText(html)).toBe('前[可爱]后');
+    });
+
+    it('title 缺失时回退 alt', () => {
+        const html =
+            '前<img alt="[泪]" ' +
+            'src="https://face.t.sinajs.cn/t4/appstyle/expression/ext/normal/87/201810_lei_mobile.png" />后';
+        expect(sanitizeWeiboText(html)).toBe('前[泪]后');
+    });
+
+    it('图片+文本链接展开, 纯文本链接不展开', () => {
+        const html =
+            '<a target="_blank" href="https://weibo.com/p/1008088d56bf26ec2dece683f0fa7061b46749">' +
+            '<img class="icon-link" title="#黄子韬[超话]#" ' +
+            'src="https://h5.sinaimg.cn/upload/100/959/2020/05/09/timeline_card_small_super_default.png"/>' +
+            '黄子韬超话</a> 带' +
+            '<a href="//s.weibo.com/weibo?q=%23%E9%BB%84%E5%AD%90%E9%9F%AC%E7%B2%89%E4%B8%9D%E6%BE%84%E6%B8%85%23" target="_blank">' +
+            '#黄子韬粉丝澄清#</a>';
+        expect(sanitizeWeiboText(html)).toBe(
+            '黄子韬超话(https://weibo.com/p/1008088d56bf26ec2dece683f0fa7061b46749) ' +
+                '带#黄子韬粉丝澄清#',
+        );
+    });
+
+    it('@用户与纯话题链接保持纯文本', () => {
+        const html =
+            '<a href="/n/foo">@foo</a> ' +
+            '<a href="//s.weibo.com/weibo?q=%23APH%23">#APH#</a>';
+        expect(sanitizeWeiboText(html)).toBe('@foo #APH#');
+    });
+
+    it('协议相对链接归一化为 https', () => {
+        const html =
+            '<a href="//s.weibo.com/weibo?q=test">' +
+            '<img src="https://h5.sinaimg.cn/icon.png">话题</a>';
+        expect(sanitizeWeiboText(html)).toBe(
+            '话题(https://s.weibo.com/weibo?q=test)',
+        );
+    });
+
+    it('图片域名的图片链接可展开', () => {
+        const html =
+            '<a href="https://wx4.sinaimg.cn/large/a.jpg">' +
+            '<img class="icon-link" title="http://t.cn/x" ' +
+            'src="https://h5.sinaimg.cn/upload/2015/01/21/20/timeline_card_small_photo_default.png"/>' +
+            '查看图片</a>';
+        expect(sanitizeWeiboText(html)).toBe(
+            '查看图片(https://wx4.sinaimg.cn/large/a.jpg)',
+        );
+    });
+
+    it('非法图片丢弃, 非法链接降级为纯文本', () => {
+        expect(
+            sanitizeWeiboText(
+                '<img src="https://evil.example/x.png">',
+            ),
+        ).toBe('');
+        expect(
+            sanitizeWeiboText(
+                '<a href="javascript:alert(1)">' +
+                    '<img src="https://h5.sinaimg.cn/x.png">文本</a>',
+            ),
+        ).toBe('文本');
+    });
+
+    it('保持换行与文本顺序', () => {
+        expect(sanitizeWeiboText('a<br>b')).toBe('a\nb');
     });
 });
 

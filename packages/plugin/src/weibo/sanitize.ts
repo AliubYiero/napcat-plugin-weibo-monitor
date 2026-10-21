@@ -194,6 +194,98 @@ export function sanitizeWeiboHtml(html: string): string {
     return out;
 }
 
+interface TextLinkState {
+    href: string;
+    text: string;
+    hasImage: boolean;
+}
+
+export function sanitizeWeiboText(html: string): string {
+    if (!html) return '';
+
+    const source = html
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+
+    const links: TextLinkState[] = [];
+    let out = '';
+
+    const append = (text: string): void => {
+        if (!text) return;
+        const link = links[links.length - 1];
+        if (link) {
+            link.text += text;
+        } else {
+            out += text;
+        }
+    };
+
+    for (const token of source.match(TOKEN_RE) ?? []) {
+        if (!token.startsWith('<')) {
+            append(decodeEntities(token).replace(/\r\n?/g, '\n'));
+            continue;
+        }
+
+        const tagMatch = /^<\s*\/?\s*([a-zA-Z0-9]+)/.exec(token);
+        if (!tagMatch) continue;
+        const tag = tagMatch[1].toLowerCase();
+        const closing = /^<\s*\//.test(token);
+
+        if (tag === 'br') {
+            append('\n');
+            continue;
+        }
+
+        if (tag === 'img') {
+            const src = safeImageUrl(getAttr(token, 'src'));
+            if (!src) continue;
+            if (isEmojiImageUrl(src)) {
+                append(
+                    decodeEntities(getAttr(token, 'title')) ||
+                        decodeEntities(getAttr(token, 'alt')),
+                );
+            } else if (links.length > 0) {
+                links[links.length - 1].hasImage = true;
+            }
+            continue;
+        }
+
+        if (tag === 'a') {
+            if (closing) {
+                const link = links.pop();
+                if (!link) continue;
+                const label = link.text.trim();
+                if (!label) continue;
+                append(
+                    link.hasImage && link.href
+                        ? `${label}(${link.href})`
+                        : label,
+                );
+            } else {
+                links.push({
+                    href: safeLinkUrl(getAttr(token, 'href'), true),
+                    text: '',
+                    hasImage: false,
+                });
+            }
+        }
+    }
+
+    while (links.length > 0) {
+        const link = links.pop();
+        if (!link) continue;
+        const label = link.text.trim();
+        if (!label) continue;
+        append(
+            link.hasImage && link.href
+                ? `${label}(${link.href})`
+                : label,
+        );
+    }
+
+    return out.replace(/\u00a0/g, ' ').trim();
+}
+
 /** 正文 HTML → 纯文本 (用于来源、alt 等) */
 export function htmlToText(html: string): string {
     return decodeEntities(
@@ -263,7 +355,15 @@ function safeImageUrl(raw: string): string {
     });
 }
 
-function safeLinkUrl(raw: string): string {
+function isEmojiImageUrl(raw: string): boolean {
+    try {
+        return new URL(raw).hostname.toLowerCase() === 'face.t.sinajs.cn';
+    } catch {
+        return false;
+    }
+}
+
+function safeLinkUrl(raw: string, allowImageHosts = false): string {
     if (!raw || raw.startsWith('javascript:')) return '';
     return safeUrl(raw, (host) => {
         return (
@@ -272,7 +372,9 @@ function safeLinkUrl(raw: string): string {
             host === 'weibo.cn' ||
             host.endsWith('.weibo.cn') ||
             host === 't.cn' ||
-            host.endsWith('.t.cn')
+            host.endsWith('.t.cn') ||
+            (allowImageHosts &&
+                (host === 'sinaimg.cn' || host.endsWith('.sinaimg.cn')))
         );
     });
 }

@@ -53,3 +53,6 @@ coverage
 # Temporary files
 *.tmp
 *.temp
+
+# 微博真机爬取测试产物
+.weibo-test/

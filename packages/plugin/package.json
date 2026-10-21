@@ -43,6 +43,7 @@
         "deploy:dev": "vite build --mode deploy-dev",
         "test": "vitest run",
         "typecheck": "tsc --noEmit",
+        "weibo:test": "tsx scripts/weiboTest/index.ts",
         "help:generate": "tsx scripts/generateHelp/index.ts"
     }
 }

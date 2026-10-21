@@ -228,8 +228,9 @@ const playwrightLauncher: BrowserLauncher = async (options) => {
 export async function launchBrowser(
     executablePath: string,
     launcher: BrowserLauncher = playwrightLauncher,
+    headless = true,
 ): Promise<Browser> {
-    return launcher({ executablePath, headless: true });
+    return launcher({ executablePath, headless });
 }
 
 export function isMissingBrowserError(error: unknown): boolean {

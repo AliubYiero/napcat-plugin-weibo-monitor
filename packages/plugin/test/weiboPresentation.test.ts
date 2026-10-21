@@ -219,21 +219,30 @@ describe('buildTextPresentation', () => {
         expect(text).not.toContain('https://weibo.com/999/R1');
     });
 
-    it('内嵌图片与文本按原顺序交替', () => {
+    it('内嵌表情转为文本, 不再产生图片段', () => {
         const segments = buildTextPresentation({
             ...POST,
-            text: '前<img src="https://face.t.sinajs.cn/e.png">后',
+            text:
+                '前<img alt="[泪]" title="[泪]" ' +
+                'src="https://face.t.sinajs.cn/e.png">后',
         });
-        expect(textOf(segments)).toContain('前');
-        expect(textOf(segments)).toContain('后');
-        expect(imagesOf(segments)).toEqual([
-            'https://face.t.sinajs.cn/e.png',
-        ]);
-        const imageIndex = segments.findIndex(
-            (segment) => segment.type === 'image',
+        expect(textOf(segments)).toContain('前[泪]后');
+        expect(imagesOf(segments)).toEqual([]);
+    });
+
+    it('含图片链接展开, 纯文本话题保持', () => {
+        const segments = buildTextPresentation({
+            ...POST,
+            text:
+                '<a href="https://weibo.com/p/100808abc">' +
+                '<img class="icon-link" title="#超话#" ' +
+                'src="https://h5.sinaimg.cn/icon.png"/>超话</a> 带' +
+                '<a href="//s.weibo.com/weibo?q=test">#话题#</a>',
+        });
+        expect(textOf(segments)).toContain(
+            '超话(https://weibo.com/p/100808abc) 带#话题#',
         );
-        expect(segments[imageIndex - 1]?.type).toBe('text');
-        expect(segments[imageIndex + 1]?.type).toBe('text');
+        expect(imagesOf(segments)).toEqual([]);
     });
 
     it('视频动态: 正文后追加标题与封面', () => {

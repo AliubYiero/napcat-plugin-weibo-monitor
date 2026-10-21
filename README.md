@@ -152,6 +152,35 @@ pnpm run dev:webui
 pnpm run typecheck
 ```
 
+### 4.1 真机爬取测试
+
+在仓库根目录 `.env` 填写两项（文件已被 gitignore）：
+
+```dotenv
+WEIBO_COOKIE="浏览器开发者工具复制的 Cookie 或 Playwright storageState JSON"
+WEIBO_TEST_UID=1234567890
+# 可选: 指定 Chrome/Edge 路径
+WEIBO_CHROME_PATH=
+```
+
+```bash
+pnpm weibo:test
+```
+
+脚本会用真实 Cookie 拉取该 UID 的第一页动态、博主资料与长文，逐条产出：
+
+```
+packages/plugin/.weibo-test/<uid>/<timestamp>/
+├── index.html          # 卡片图 + 文本并排，带合格/被筛、长文、错误标记
+├── manifest.json       # 每条元信息与汇总
+├── posts.raw.json      # 第一页原始动态
+├── 001-<mblogid>.txt   # 推送文本（图片位置写 [图片] <url>）
+├── 001-<mblogid>.png   # 真实 Chromium 卡片截图
+└── images/             # 主动态与原动态附图
+```
+
+只有第一页拉取失败才以非零码退出；profile、长文、截图、附图失败都会降级并在汇总页标注。产物目录已加入 `.gitignore`。
+
 ### 5. 调试 & 热重载
 
 项目通过 Vite 插件 `napcatHmrPlugin` 集成了热重载能力，需要在 NapCat 端安装 `napcat-plugin-debug` 插件并启用。

@@ -1,5 +1,5 @@
 import { buildPostUrl, pickAllPostImages } from './card';
-import { sanitizeWeiboHtml } from './sanitize';
+import { sanitizeWeiboText } from './sanitize';
 import { formatWeiboTime } from './time';
 import type { WeiboPost } from './types';
 
@@ -25,18 +25,6 @@ export interface TextPresentationOptions {
 
 const REPOST_DIVIDER = '────────';
 const REPOST_DIVIDER_BLOCK = `\n\n${REPOST_DIVIDER}\n\n`;
-
-const RICH_TOKEN_RE =
-    /<img\b[^>]*?\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>|<br\s*\/?>|<[^>]*>|[^<]+/gi;
-
-const ENTITIES: Record<string, string> = {
-    amp: '&',
-    lt: '<',
-    gt: '>',
-    quot: '"',
-    apos: "'",
-    nbsp: '\u00a0',
-};
 
 export function resolvePostEvent(post: WeiboPost): PostEvent {
     if (post.retweeted_status || post.retweeted_status_id) {
@@ -191,62 +179,8 @@ function pickAttachedImages(
 }
 
 function buildRichText(html: string): PresentationSegment[] {
-    const sanitized = sanitizeWeiboHtml(html);
-    if (!sanitized) return [];
-
-    const segments: PresentationSegment[] = [];
-    const regex = new RegExp(
-        RICH_TOKEN_RE.source,
-        RICH_TOKEN_RE.flags,
-    );
-    for (const match of sanitized.matchAll(regex)) {
-        const token = match[0];
-        const source = match[1] ?? match[2] ?? match[3];
-        if (source !== undefined) {
-            const url = decodeEntities(source);
-            if (url) pushImage(segments, url);
-            continue;
-        }
-        if (/^<br\b/i.test(token)) {
-            pushText(segments, '\n');
-            continue;
-        }
-        if (token.startsWith('<')) continue;
-        pushText(segments, decodeEntities(token));
-    }
-
-    return trimSegments(segments);
-}
-
-function decodeEntities(text: string): string {
-    return text.replace(
-        /&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g,
-        (match, entity: string) => {
-            if (entity.startsWith('#x') || entity.startsWith('#X')) {
-                return codePoint(entity.slice(2), 16, match);
-            }
-            if (entity.startsWith('#')) {
-                return codePoint(entity.slice(1), 10, match);
-            }
-            return ENTITIES[entity.toLowerCase()] ?? match;
-        },
-    );
-}
-
-function codePoint(
-    raw: string,
-    radix: number,
-    fallback: string,
-): string {
-    const code = Number.parseInt(raw, radix);
-    if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff) {
-        return fallback;
-    }
-    try {
-        return String.fromCodePoint(code);
-    } catch {
-        return fallback;
-    }
+    const text = sanitizeWeiboText(html);
+    return text ? [{ type: 'text', text }] : [];
 }
 
 function appendSegments(
@@ -281,17 +215,4 @@ function pushImage(
 ): void {
     if (!url) return;
     segments.push({ type: 'image', url });
-}
-
-function trimSegments(
-    segments: PresentationSegment[],
-): PresentationSegment[] {
-    const first = segments[0];
-    if (first?.type === 'text') first.text = first.text.trimStart();
-    const last = segments[segments.length - 1];
-    if (last?.type === 'text') last.text = last.text.trimEnd();
-    return segments.filter(
-        (segment) =>
-            segment.type === 'image' || segment.text.length > 0,
-    );
 }

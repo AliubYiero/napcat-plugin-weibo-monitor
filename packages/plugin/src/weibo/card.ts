@@ -136,12 +136,12 @@ export function buildPostCardHtml(post: WeiboPost): string {
         width: 20px; height: 20px; vertical-align: -3px; margin: 0 1px;
     }
     .images { margin-top: 14px; display: grid; gap: 4px; }
-    .images.n1 { grid-template-columns: 1fr; }
-    .images.n2 { grid-template-columns: repeat(2, 1fr); }
-    .images.n3 { grid-template-columns: repeat(3, 1fr); }
+    .images.n1 { grid-template-columns: minmax(0, 1fr); }
+    .images.n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .images.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .images img {
-        width: 100%; display: block; border-radius: 6px; object-fit: cover;
-        background: #f4f5f7;
+        width: 100%; min-width: 0; display: block; border-radius: 6px;
+        object-fit: cover; background: #f4f5f7;
     }
     .images.n2 img, .images.n3 img { aspect-ratio: 1 / 1; }
     .images.n1 img { max-height: 860px; object-fit: contain; }

@@ -35,6 +35,12 @@ export interface WeiboCursor {
     updatedAt: number;
 }
 
+/** 浏览器页面内一次接口请求的原始结果 */
+export interface ApiFetchResult {
+    status: number;
+    body: unknown;
+}
+
 /** 微博用户 (profile / 动态作者) */
 export interface WeiboUser {
     id?: number | string;
