@@ -395,6 +395,7 @@ function buildWeiboStatus(): Record<string, unknown> {
         polling: weiboPollingService.getStatus(),
         cookie: {
             configured: cookie.cookies.length > 0,
+            names: cookie.cookies.map((item) => item.name),
             invalid: cookie.invalid,
             lastSuccessAt: cookie.lastSuccessAt,
             lastValidatedAt: cookie.lastValidatedAt,

@@ -1,6 +1,7 @@
 import type { Page } from 'playwright-core';
 import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
+import type { StoredCookie } from '../../weibo/types';
 import {
     createWeiboBrowserSession,
     type WeiboBrowserSession,
@@ -22,6 +23,42 @@ export class BrowserService {
 
     withPage<T>(task: (page: Page) => Promise<T>): Promise<T> {
         return this.ensureSession().withPage(task);
+    }
+
+    /**
+     * 用候选 Cookie 起一个临时会话做校验, 不读写 store。
+     *
+     * 返回任务结果与候选会话最终上下文里的 Cookie (含服务端 Set-Cookie 续期),
+     * 调用方校验通过后再自行决定是否落盘。
+     */
+    async withCandidateSession<T>(
+        cookies: StoredCookie[],
+        task: (session: WeiboBrowserSession) => Promise<T>,
+    ): Promise<{ result: T; cookies: StoredCookie[] }> {
+        const status = detectBrowserLightweight();
+        if (!status.available || !status.executablePath) {
+            throw new Error(
+                status.error ??
+                    '未找到可用的浏览器, 请在 WebUI 账号页安装',
+            );
+        }
+
+        let refreshed = cookies.map((cookie) => ({ ...cookie }));
+        const session = createWeiboBrowserSession({
+            executablePath: status.executablePath,
+            cookies,
+            logger: pluginState.logger,
+            onCookiesRefreshed: (next) => {
+                refreshed = next;
+            },
+        });
+
+        try {
+            const result = await task(session);
+            return { result, cookies: refreshed };
+        } finally {
+            await session.close();
+        }
     }
 
     fetchApi(urlPath: string) {

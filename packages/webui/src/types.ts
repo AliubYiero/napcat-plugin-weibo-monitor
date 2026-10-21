@@ -51,6 +51,8 @@ export interface WeiboPollingStatus {
 
 export interface WeiboCookieStatus {
     configured: boolean;
+    /** Cookie 名列表 (值永不出后端) */
+    names: string[];
     invalid: boolean;
     lastSuccessAt: number | null;
     lastValidatedAt: number | null;

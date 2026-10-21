@@ -16,6 +16,7 @@ import type {
     WeiboInstallState,
 } from '../types';
 import { noAuthFetch } from '../utils/api';
+import { formatCookieMask } from '../utils/cookieMask';
 import {
     formatRelative,
     formatSource,
@@ -26,6 +27,7 @@ const INSTALL_POLL_MS = 1000;
 
 export default function AccountPage() {
     const [cookie, setCookie] = useState('');
+    const [editing, setEditing] = useState(false);
     const [cookieStatus, setCookieStatus] =
         useState<WeiboCookieStatus | null>(null);
     const [browser, setBrowser] = useState<WeiboBrowserStatus | null>(
@@ -38,6 +40,9 @@ export default function AccountPage() {
         null,
     );
     const [busy, setBusy] = useState(false);
+    const [cookieBusy, setCookieBusy] = useState<
+        'save' | 'validate' | null
+    >(null);
     const [loading, setLoading] = useState(true);
 
     const fetchStatus = useCallback(async () => {
@@ -75,12 +80,17 @@ export default function AccountPage() {
         return () => clearInterval(timer);
     }, [install?.running, fetchInstall]);
 
+    const configured = cookieStatus?.configured === true;
+    const masked = configured && !editing;
+    const maskText = formatCookieMask(cookieStatus?.names ?? []);
+
     const saveCookie = async () => {
         if (!cookie.trim()) {
             showToast('请先粘贴 Cookie', 'warning');
             return;
         }
         setBusy(true);
+        setCookieBusy('save');
         setResult(null);
         try {
             const res = await noAuthFetch<CookieActionResult>(
@@ -94,11 +104,16 @@ export default function AccountPage() {
                 valid: false,
                 message: '未知结果',
             };
-            setResult(data);
             if (data.valid) {
+                setResult(data);
                 setCookie('');
+                setEditing(false);
                 showToast('Cookie 已保存', 'success');
             } else {
+                setResult({
+                    valid: false,
+                    message: `校验未通过，未保存：${data.message}`,
+                });
                 showToast(data.message, 'warning');
             }
             await fetchStatus();
@@ -109,11 +124,25 @@ export default function AccountPage() {
             );
         } finally {
             setBusy(false);
+            setCookieBusy(null);
         }
+    };
+
+    const startReinput = () => {
+        setCookie('');
+        setResult(null);
+        setEditing(true);
+    };
+
+    const cancelReinput = () => {
+        setCookie('');
+        setResult(null);
+        setEditing(false);
     };
 
     const validateCookie = async () => {
         setBusy(true);
+        setCookieBusy('validate');
         try {
             const res = await noAuthFetch<CookieActionResult>(
                 '/weibo/cookie/validate',
@@ -131,6 +160,7 @@ export default function AccountPage() {
             showToast('校验失败', 'error');
         } finally {
             setBusy(false);
+            setCookieBusy(null);
         }
     };
 
@@ -138,6 +168,8 @@ export default function AccountPage() {
         setBusy(true);
         try {
             await noAuthFetch('/weibo/cookie', { method: 'DELETE' });
+            setCookie('');
+            setEditing(false);
             setResult(null);
             showToast('Cookie 已清除', 'success');
             await fetchStatus();
@@ -248,37 +280,83 @@ export default function AccountPage() {
                 </div>
 
                 <textarea
-                    className="input-field min-h-28 font-mono text-xs"
-                    placeholder="粘贴浏览器 Cookie，例如：SUB=...; SUBP=...;"
-                    value={cookie}
+                    className="input-field min-h-28 font-mono text-xs read-only:bg-gray-50 read-only:text-gray-500 read-only:cursor-default dark:read-only:bg-white/[0.03] dark:read-only:text-gray-400"
+                    placeholder={
+                        masked
+                            ? ''
+                            : '粘贴浏览器 Cookie，例如：SUB=...; SUBP=...;'
+                    }
+                    value={masked ? maskText : cookie}
+                    readOnly={masked || busy}
                     onChange={(event) =>
                         setCookie(event.target.value)
+                    }
+                    aria-label={
+                        masked
+                            ? '已保存的 Cookie（只读掩码）'
+                            : '微博 Cookie'
                     }
                 />
 
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                    <button
-                        type="button"
-                        className="btn btn-primary text-xs"
-                        disabled={busy}
-                        onClick={saveCookie}
-                    >
-                        <IconCheck size={13} />
-                        保存并校验
-                    </button>
-                    <button
-                        type="button"
-                        className="btn btn-ghost text-xs"
-                        disabled={busy || !cookieStatus?.configured}
-                        onClick={validateCookie}
-                    >
-                        <IconRefresh size={13} />
-                        校验当前
-                    </button>
+                    {masked ? (
+                        <button
+                            type="button"
+                            className="btn btn-primary text-xs"
+                            disabled={busy}
+                            onClick={startReinput}
+                        >
+                            <IconKey size={13} />
+                            重新输入
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className="btn btn-primary text-xs"
+                            disabled={busy}
+                            onClick={saveCookie}
+                        >
+                            {cookieBusy === 'save' ? (
+                                <span className="loading-spinner" />
+                            ) : (
+                                <IconCheck size={13} />
+                            )}
+                            {cookieBusy === 'save'
+                                ? '校验中...'
+                                : '保存并校验'}
+                        </button>
+                    )}
+                    {!editing && (
+                        <button
+                            type="button"
+                            className="btn btn-ghost text-xs"
+                            disabled={busy || !configured}
+                            onClick={validateCookie}
+                        >
+                            {cookieBusy === 'validate' ? (
+                                <span className="loading-spinner" />
+                            ) : (
+                                <IconRefresh size={13} />
+                            )}
+                            {cookieBusy === 'validate'
+                                ? '校验中...'
+                                : '校验当前'}
+                        </button>
+                    )}
+                    {editing && (
+                        <button
+                            type="button"
+                            className="btn btn-ghost text-xs"
+                            disabled={busy}
+                            onClick={cancelReinput}
+                        >
+                            取消
+                        </button>
+                    )}
                     <button
                         type="button"
                         className="btn btn-danger text-xs"
-                        disabled={busy || !cookieStatus?.configured}
+                        disabled={busy || !configured}
                         onClick={clearCookie}
                     >
                         <IconX size={13} />

@@ -13,8 +13,12 @@ import {
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
 import { parseCookieHeader } from '../../weibo/sanitize';
+import type { StoredCookie } from '../../weibo/types';
 import { browserService } from '../browser/service';
-import { weiboApiService } from './apiService';
+import {
+    validateCookieWithSession,
+    weiboApiService,
+} from './apiService';
 import { weiboRuntime } from './runtimeStatus';
 
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -30,29 +34,50 @@ class WeiboCookieService {
         return WeiboCookieStore.getInstance();
     }
 
-    /** 保存用户粘贴的 Cookie, 重置浏览器并做一次校验 */
+    /**
+     * 保存用户粘贴的 Cookie: 先用临时会话校验候选, 通过后才落盘。
+     * 校验失败时 store 与健康状态都不变。
+     */
     async save(raw: string): Promise<SaveCookieResult> {
         const cookies = parseCookieHeader(raw);
         if (cookies.length === 0) {
-            throw new Error(
-                '未解析出任何 Cookie, 请粘贴完整 Cookie 字符串',
+            return {
+                valid: false,
+                message:
+                    '未解析出任何 Cookie, 请粘贴完整 Cookie 字符串',
+            };
+        }
+
+        let checked: {
+            result: SaveCookieResult;
+            cookies: StoredCookie[];
+        };
+        try {
+            checked = await browserService.withCandidateSession(
+                cookies,
+                (session) =>
+                    validateCookieWithSession(
+                        session,
+                        this.firstMonitoredUid(),
+                    ),
             );
+        } catch (error) {
+            return {
+                valid: false,
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : '浏览器启动失败',
+            };
         }
 
-        this.store.saveCookies(cookies);
-        await browserService.close();
+        if (!checked.result.valid) return checked.result;
 
-        const result = await weiboApiService.validateCookie(
-            this.firstMonitoredUid(),
-        );
+        this.store.saveCookies(checked.cookies);
         this.store.markValidated();
-        if (result.valid) {
-            this.store.markSuccess();
-        } else if (result.failure === 'invalid') {
-            this.store.markInvalid();
-        }
-
-        return { valid: result.valid, message: result.message };
+        this.store.markSuccess();
+        await browserService.close();
+        return checked.result;
     }
 
     /** 手动校验 (不改变已保存的 Cookie) */

@@ -203,9 +203,11 @@ export interface WeiboPollingStatus {
     lastErrorAt: number | null;
 }
 
-/** Cookie 运行时状态 (不返回 cookie 值) */
+/** Cookie 运行时状态 (不返回 cookie 值, 仅返回名称供掩码展示) */
 export interface WeiboCookieStatus {
     configured: boolean;
+    /** Cookie 名列表 (值永不出后端) */
+    names: string[];
     invalid: boolean;
     lastSuccessAt: number | null;
     lastValidatedAt: number | null;
