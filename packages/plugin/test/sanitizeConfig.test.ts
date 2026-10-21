@@ -44,6 +44,30 @@ describe('sanitizeConfig: 标量', () => {
     });
 });
 
+describe('sanitizeConfig: 单选 (推送呈现方式)', () => {
+    it('命中 options 时采纳', () => {
+        expect(
+            sanitizeConfig({ weiboPushRenderMode: 'text' })
+                .weiboPushRenderMode,
+        ).toBe('text');
+        expect(
+            sanitizeConfig({ weiboPushRenderMode: 'image' })
+                .weiboPushRenderMode,
+        ).toBe('image');
+    });
+
+    it('非法值回退默认', () => {
+        expect(
+            sanitizeConfig({ weiboPushRenderMode: 'video' })
+                .weiboPushRenderMode,
+        ).toBe(DEFAULT_CONFIG.weiboPushRenderMode);
+        expect(
+            sanitizeConfig({ weiboPushRenderMode: 1 })
+                .weiboPushRenderMode,
+        ).toBe(DEFAULT_CONFIG.weiboPushRenderMode);
+    });
+});
+
 describe('sanitizeConfig: 多选 (指令触发方式)', () => {
     it('非数组输入回退默认', () => {
         expect(

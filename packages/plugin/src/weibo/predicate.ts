@@ -3,10 +3,11 @@
  *
  * 只认满足以下全部条件的动态:
  *   - 作者 UID 与订阅 UID 完全一致
- *   - 原创微博 (mblogtype === 0)
+ *   - 普通类型 (mblogtype === 0)
  *   - 置顶 (isTop) 与广告 (isAd) 均排除
  *
- * 转发也算原创微博, 由卡片层额外展示被转发内容。
+ * 转发动态的 mblogtype 与原创一样为 0, 不能据此排除;
+ * 转发由 retweeted_status / retweeted_status_id 判定。
  */
 
 import type { WeiboPost } from './types';

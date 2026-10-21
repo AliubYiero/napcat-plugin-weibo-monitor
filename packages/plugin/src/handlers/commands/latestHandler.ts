@@ -6,7 +6,6 @@
  */
 
 import { weiboMonitorService } from '../../services/weibo/monitorService';
-import { buildPostText, buildPostUrl } from '../../weibo/card';
 import type { WeiboMonitor } from '../../weibo/types';
 import type { InstructionHandler } from '../instructionRegistry';
 import { sendReply } from '../utils';
@@ -81,17 +80,13 @@ export const latestHandler: InstructionHandler = async (
             userRole.from,
         );
         if (result.pushed === 0) {
-            await sendReply(
-                ctx,
-                event,
-                `发送失败，原文链接：${buildPostUrl(post)}\n${buildPostText(post)}`,
-            );
+            await sendReply(ctx, event, '发送失败，请稍后重试');
         }
     } catch (error) {
         await sendReply(
             ctx,
             event,
-            `获取最新动态失败：${messageOf(error)}`,
+            `获取微博动态失败：${messageOf(error)}`,
         );
     }
 };

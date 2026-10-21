@@ -5,7 +5,9 @@
  */
 
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
+import { extractLongText } from '../../weibo/longText';
 import type {
+    WeiboLongTextResponse,
     WeiboMyMblogResponse,
     WeiboPost,
     WeiboProfileResponse,
@@ -27,6 +29,13 @@ export interface ProfileResult {
     user: WeiboUser | null;
     message: string;
     failure: WeiboApiFailure;
+}
+
+export interface LongTextResult {
+    ok: boolean;
+    text: string;
+    message: string;
+    status: number;
 }
 
 /** 从 mymblog 响应中取动态数组 */
@@ -87,6 +96,35 @@ class WeiboApiService {
             posts,
             message: String(response?.message ?? ''),
             failure,
+        };
+    }
+
+    /** 按 mblogid 补拉长文; 失败不参与 Cookie 失效/风控判定 */
+    async fetchLongText(mblogid: string): Promise<LongTextResult> {
+        const result = await browserService.fetchApi(
+            `/ajax/statuses/longtext?id=${encodeURIComponent(mblogid)}`,
+        );
+        const response = result.body as WeiboLongTextResponse | null;
+        const text = extractLongText(result.body);
+        const ok =
+            result.status < 400 &&
+            response?.ok === 1 &&
+            text.trim() !== '';
+        if (ok) WeiboCookieStore.getInstance().markSuccess();
+
+        const message = String(response?.message ?? '');
+        const failureMessage =
+            message ||
+            (result.status >= 400
+                ? `HTTP ${result.status}`
+                : text.trim()
+                  ? ''
+                  : '空长文');
+        return {
+            ok,
+            text,
+            message: failureMessage,
+            status: result.status,
         };
     }
 

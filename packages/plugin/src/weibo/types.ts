@@ -56,9 +56,12 @@ export interface WeiboPicInfo {
 
 /** 视频/文章等页面信息 */
 export interface WeiboPageInfo {
-    type?: string;
+    type?: string | number;
+    object_type?: string | number;
     title?: string;
     content1?: string;
+    content2?: string;
+    page_title?: string;
     page_url?: string;
     page_pic?: string | { url?: string };
     media_info?: {
@@ -77,6 +80,7 @@ export interface WeiboPost {
     mid?: string;
     mblogid?: string;
     mblogtype?: number;
+    isLongText?: boolean | number;
     isTop?: number | boolean;
     isAd?: boolean;
     created_at?: string;
@@ -112,6 +116,19 @@ export interface WeiboProfileResponse {
     message?: string;
     data?: {
         user?: WeiboUser;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
+/** longtext 接口响应 */
+export interface WeiboLongTextResponse {
+    ok?: number;
+    message?: string;
+    data?: {
+        longTextContent?: string;
+        longTextContent_raw?: string;
+        isMarkdown?: boolean;
         [key: string]: unknown;
     };
     [key: string]: unknown;

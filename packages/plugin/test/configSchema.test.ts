@@ -202,6 +202,9 @@ describe('buildConfigSchema 其余映射', () => {
         expect(schema.some((it) => it.key === 'triggerModes')).toBe(
             false,
         );
+        expect(
+            schema.some((it) => it.key === 'weiboPushRenderMode'),
+        ).toBe(false);
     });
 
     it('微博轮询间隔映射为数字框', () => {

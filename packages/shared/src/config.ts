@@ -212,6 +212,12 @@ export interface PluginConfig {
     weiboPollIntervalMinutes: number;
 
     /**
+     * 推送呈现方式: `image` 为整卡图片, `text` 为文本模板。
+     * 只决定呈现形态, 不决定是否推送。
+     */
+    weiboPushRenderMode: PushRenderMode;
+
+    /**
      * Chrome / Edge 可执行文件路径。留空时自动探测共享安装目录与系统浏览器。
      * 只在用户显式指定时填写——手填路径会被优先采用。
      */
@@ -233,6 +239,19 @@ export type TriggerMode = 'prefix' | 'atBot';
 export const TRIGGER_MODE_OPTIONS: readonly ConfigOption[] = [
     { label: '指令 参数', value: 'prefix' },
     { label: '@机器人 指令 参数', value: 'atBot' },
+];
+
+/**
+ * 推送呈现方式
+ *
+ * `image`: 整卡图片 (默认); `text`: 标题行 + 链接 + 正文模板。
+ */
+export type PushRenderMode = 'image' | 'text';
+
+/** 推送呈现方式候选项 (与 PushRenderMode 同源) */
+export const PUSH_RENDER_MODE_OPTIONS: readonly ConfigOption[] = [
+    { label: '图片推送', value: 'image' },
+    { label: '文本推送', value: 'text' },
 ];
 
 /**
@@ -299,6 +318,16 @@ export const FIELDS = [
         min: 1,
         max: 1440,
         step: 1,
+    },
+    {
+        key: 'weiboPushRenderMode',
+        kind: 'select',
+        label: '推送呈现方式',
+        description:
+            '图片推送沿用整卡; 文本推送发送标题行、原文链接与正文',
+        scope: 'webui',
+        options: PUSH_RENDER_MODE_OPTIONS,
+        default: 'image',
     },
     {
         key: 'chromeExecutablePath',

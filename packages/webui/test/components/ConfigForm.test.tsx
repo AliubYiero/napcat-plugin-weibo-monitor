@@ -46,7 +46,9 @@ describe('ConfigForm', () => {
             screen.getByPlaceholderText('输入 QQ 号后按回车添加'),
         ).toBeInTheDocument();
         expect(screen.getByText('指令触发方式')).toBeInTheDocument();
-        expect(screen.getByText('轮询间隔 (分钟)')).toBeInTheDocument();
+        expect(
+            screen.getByText('轮询间隔 (分钟)'),
+        ).toBeInTheDocument();
         expect(
             screen.getByPlaceholderText(
                 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -57,6 +59,26 @@ describe('ConfigForm', () => {
     it('过滤 scope=panel 的仅原生面板字段', () => {
         renderForm();
         expect(screen.queryByText(/跳转至拓展页面/)).toBeNull();
+    });
+
+    it('渲染推送呈现方式下拉框', () => {
+        renderForm();
+        expect(screen.getByText('推送呈现方式')).toBeInTheDocument();
+        expect(screen.getByText('图片推送')).toBeInTheDocument();
+    });
+
+    it('推送呈现方式变更冒泡 key 与标量', () => {
+        const { onChange } = renderForm();
+        fireEvent.click(
+            screen.getByRole('button', { name: /图片推送/ }),
+        );
+        fireEvent.click(
+            screen.getByRole('option', { name: '文本推送' }),
+        );
+        expect(onChange).toHaveBeenCalledWith(
+            'weiboPushRenderMode',
+            'text',
+        );
     });
 
     it('卡片标题不触发 onChange', () => {

@@ -20,6 +20,9 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 | 文档 | 决策 |
 | --- | --- |
 | [adr/0001-plugin-switch-and-command-prefix.md](./adr/0001-plugin-switch-and-command-prefix.md) | 插件级启停交宿主 (去掉 `enabled`), 指令前缀内部化 (`COMMAND_PREFIX`) |
+| [adr/0002-playwright-for-weibo-api.md](./adr/0002-playwright-for-weibo-api.md) | 微博接口调用统一走 Playwright 页面 |
+| [adr/0003-single-weibo-account.md](./adr/0003-single-weibo-account.md) | 单微博账号模型 |
+| [adr/0004-push-render-mode.md](./adr/0004-push-render-mode.md) | 推送呈现双模式 (图片 / 文本) 与长文补拉 |
 
 判据与写法见 [development-pattern.md](./development-pattern.md) 的"架构决策记录 (ADR) 纪律"。
 

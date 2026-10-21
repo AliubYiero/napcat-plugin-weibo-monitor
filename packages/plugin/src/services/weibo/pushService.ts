@@ -12,13 +12,21 @@ import {
     sendGroupMessage,
     sendPrivateMessage,
 } from '../../handlers/utils';
-import { buildPostText } from '../../weibo/card';
+import {
+    buildImagePresentation,
+    buildPlainText,
+    buildTextPresentation,
+    type PresentationSegment,
+} from '../../weibo/presentation';
 import type { WeiboMonitor, WeiboPost } from '../../weibo/types';
 import { sessionConfigService } from '../sessionConfigService';
+import { weiboLongTextService } from './longTextService';
 import { cardRenderService } from './renderService';
 import { weiboRuntime } from './runtimeStatus';
 
 const MESSAGE_INTERVAL_MS = 500;
+
+type OutgoingMessage = Parameters<typeof sendPrivateMessage>[2];
 
 export interface PushResult {
     pushed: number;
@@ -41,39 +49,35 @@ class WeiboPushService {
             return { pushed: 0, failed: 0 };
         }
 
-        const image = await cardRenderService.render(post);
-        const text = image ? '' : buildPostText(post);
+        const content = await weiboLongTextService.hydrate(post);
+        const mode = pluginState.config.weiboPushRenderMode;
+        const cardImage =
+            mode === 'image'
+                ? await cardRenderService.render(content)
+                : null;
+        const primary = toMessage(
+            mode === 'image'
+                ? buildImagePresentation(content, cardImage)
+                : buildTextPresentation(content),
+        );
+        const fallback = buildPlainText(content);
+
         let pushed = 0;
         let failed = 0;
 
         for (const target of enabled) {
-            const ok = image
-                ? await this.send(
-                      target.type,
-                      target.id,
-                      createImageMessage(image),
-                  )
-                : await this.send(
-                      target.type,
-                      target.id,
-                      createTextMessage(text),
-                  );
+            let ok = await this.send(target.type, target.id, primary);
+            if (!ok) {
+                ok = await this.send(
+                    target.type,
+                    target.id,
+                    fallback,
+                );
+            }
 
             if (ok) {
                 pushed += 1;
                 weiboRuntime.recordPush(monitor.uid);
-            } else if (image) {
-                const fallbackOk = await this.send(
-                    target.type,
-                    target.id,
-                    createTextMessage(buildPostText(post)),
-                );
-                if (fallbackOk) {
-                    pushed += 1;
-                    weiboRuntime.recordPush(monitor.uid);
-                } else {
-                    failed += 1;
-                }
             } else {
                 failed += 1;
             }
@@ -90,7 +94,7 @@ class WeiboPushService {
     private async send(
         type: 'group' | 'private',
         id: string,
-        message: Parameters<typeof sendPrivateMessage>[2],
+        message: OutgoingMessage,
     ): Promise<boolean> {
         const ctx = pluginState.ctx;
         return type === 'group'
@@ -100,6 +104,17 @@ class WeiboPushService {
 }
 
 export const weiboPushService = new WeiboPushService();
+
+function toMessage(segments: PresentationSegment[]): OutgoingMessage {
+    if (segments.length === 1 && segments[0].type === 'text') {
+        return segments[0].text;
+    }
+    return segments.map((segment) =>
+        segment.type === 'text'
+            ? createTextMessage(segment.text)
+            : createImageMessage(segment.url),
+    );
+}
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));

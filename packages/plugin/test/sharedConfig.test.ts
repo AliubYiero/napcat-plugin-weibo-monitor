@@ -12,6 +12,7 @@ const EXPECTED_KEYS = [
     'adminUsers',
     'triggerModes',
     'weiboPollIntervalMinutes',
+    'weiboPushRenderMode',
     'chromeExecutablePath',
 ];
 
@@ -67,6 +68,22 @@ describe('FIELDS 声明源', () => {
         );
         expect(field?.scope).toBe('webui');
     });
+
+    it('推送呈现方式仅在自建前端呈现, 默认图片', () => {
+        const field = FIELDS.find(
+            (item) =>
+                'key' in item && item.key === 'weiboPushRenderMode',
+        );
+        expect(field?.scope).toBe('webui');
+        expect(field).toMatchObject({
+            kind: 'select',
+            default: 'image',
+            options: [
+                { label: '图片推送', value: 'image' },
+                { label: '文本推送', value: 'text' },
+            ],
+        });
+    });
 });
 
 describe('getDefaultConfig: 从 FIELDS 派生', () => {
@@ -77,6 +94,7 @@ describe('getDefaultConfig: 从 FIELDS 派生', () => {
             adminUsers: [],
             triggerModes: ['prefix', 'atBot'],
             weiboPollIntervalMinutes: 60,
+            weiboPushRenderMode: 'image',
             chromeExecutablePath: '',
         });
         expect(a).not.toBe(b);

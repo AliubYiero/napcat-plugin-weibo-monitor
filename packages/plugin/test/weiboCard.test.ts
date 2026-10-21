@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildPostCardHtml,
-    buildPostText,
     buildPostUrl,
     CARD_WIDTH,
+    pickAllPostImages,
     pickAvatar,
     pickPostImages,
 } from '../src/weibo/card';
@@ -58,6 +58,19 @@ describe('pickPostImages', () => {
             }),
         ).toEqual(['la', 'tb']);
     });
+
+    it('pickAllPostImages 不截断张数', () => {
+        const pic_infos: WeiboPost['pic_infos'] = {};
+        const pic_ids: string[] = [];
+        for (let i = 0; i < 12; i += 1) {
+            const id = `p${i}`;
+            pic_ids.push(id);
+            pic_infos[id] = { large: { url: `l${i}` } };
+        }
+        expect(
+            pickAllPostImages({ pic_ids, pic_infos }),
+        ).toHaveLength(12);
+    });
 });
 
 describe('pickAvatar', () => {
@@ -99,6 +112,15 @@ describe('buildPostCardHtml', () => {
         expect(html).toContain('https://weibo.com/123/M1');
     });
 
+    it('卡片时间格式化为北京时间', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            created_at: 'Thu Dec 07 01:35:24 +0800 2023',
+        });
+        expect(html).toContain('2023/12/07 01:35:24');
+        expect(html).not.toContain('Thu Dec 07');
+    });
+
     it('有图时生成网格, 有转发时生成转发块', () => {
         const html = buildPostCardHtml({
             ...POST,
@@ -115,19 +137,5 @@ describe('buildPostCardHtml', () => {
         expect(html).toContain('images n2');
         expect(html).toContain('@原博主');
         expect(html).toContain('被转发正文');
-    });
-});
-
-describe('buildPostText', () => {
-    it('生成文本回退并带原链接与图片数量', () => {
-        const text = buildPostText({
-            ...POST,
-            pic_ids: ['a'],
-            pic_infos: { a: { large: { url: 'a.jpg' } } },
-        });
-        expect(text).toContain('博主');
-        expect(text).toContain('正文');
-        expect(text).toContain('1');
-        expect(text).toContain('https://weibo.com/123/M1');
     });
 });

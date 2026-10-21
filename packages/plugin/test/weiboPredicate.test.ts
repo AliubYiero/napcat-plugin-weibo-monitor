@@ -48,10 +48,27 @@ describe('isQualifiedPost', () => {
         ).toBe(false);
     });
 
-    it('mblogtype 非 0 时淘汰 (转发/其他类型)', () => {
+    it('mblogtype 非 0 时淘汰 (其他类型)', () => {
         expect(isQualifiedPost(post({ mblogtype: 1 }), UID)).toBe(
             false,
         );
+    });
+
+    it('转发动态 (mblogtype 0 + retweeted_status) 仍合格', () => {
+        expect(
+            isQualifiedPost(
+                post({
+                    retweeted_status: { text: '原动态' },
+                }),
+                UID,
+            ),
+        ).toBe(true);
+        expect(
+            isQualifiedPost(
+                post({ retweeted_status_id: 'RT1' }),
+                UID,
+            ),
+        ).toBe(true);
     });
 
     it('置顶与广告淘汰', () => {

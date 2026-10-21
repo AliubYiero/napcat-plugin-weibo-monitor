@@ -2,7 +2,7 @@
  * 推送卡片 HTML 构建 (纯函数)
  *
  * 宽度固定 640px, 截图时再按 DPR 2 放大。所有外部文本/URL 都必须经过
- * 转义与白名单净化; 不展示认证标与转评赞, 不补拉长文。
+ * 转义与白名单净化; 不展示认证标与转评赞。长文由推送服务在渲染前补齐。
  */
 
 import {
@@ -10,13 +10,14 @@ import {
     htmlToText,
     sanitizeWeiboHtml,
 } from './sanitize';
+import { formatWeiboTime } from './time';
 import type { WeiboPost, WeiboUser } from './types';
 
 /** 卡片 CSS 宽度 */
 export const CARD_WIDTH = 640;
 
-/** 从动态中取图片 URL (large → bmiddle) */
-export function pickPostImages(post: WeiboPost): string[] {
+/** 从动态中取全部图片 URL (large → bmiddle) */
+export function pickAllPostImages(post: WeiboPost): string[] {
     const infos = post.pic_infos ?? {};
     const ids =
         post.pic_ids && post.pic_ids.length > 0
@@ -46,7 +47,12 @@ export function pickPostImages(post: WeiboPost): string[] {
         }
     }
 
-    return urls.slice(0, 9);
+    return urls;
+}
+
+/** 从动态中取卡片网格图片 URL (最多 9 张) */
+export function pickPostImages(post: WeiboPost): string[] {
+    return pickAllPostImages(post).slice(0, 9);
 }
 
 /** 取博主头像 */
@@ -77,7 +83,7 @@ export function buildPostCardHtml(post: WeiboPost): string {
     const user = post.user;
     const screenName = user?.screen_name ?? '微博用户';
     const avatar = pickAvatar(user);
-    const createdAt = post.created_at ?? '';
+    const createdAt = formatWeiboTime(post.created_at);
     const source = htmlToText(post.source ?? '');
     const region = post.region_name ?? '';
     const content = sanitizeWeiboHtml(
@@ -193,35 +199,6 @@ export function buildPostCardHtml(post: WeiboPost): string {
 </div>
 </body>
 </html>`;
-}
-
-/** 文本回退 (截图失败时发送) */
-export function buildPostText(post: WeiboPost): string {
-    const screenName = post.user?.screen_name ?? '微博用户';
-    const text = htmlToText(post.text ?? post.text_raw ?? '');
-    const url = buildPostUrl(post);
-    const images = pickPostImages(post);
-
-    const lines = [`【${screenName}】发布了新微博`];
-    if (text) lines.push(text);
-    if (images.length > 0) {
-        lines.push(`[图片 ${images.length} 张]`);
-    }
-    const retweet = post.retweeted_status;
-    if (retweet) {
-        const rtName = retweet.user?.screen_name ?? '原博主';
-        const rtText = htmlToText(
-            retweet.text ?? retweet.text_raw ?? '',
-        );
-        lines.push(
-            `转发自 @${rtName}${rtText ? `：${rtText}` : ''}`.slice(
-                0,
-                300,
-            ),
-        );
-    }
-    lines.push(url);
-    return lines.join('\n');
 }
 
 function renderImages(images: string[], extraClass: string): string {
