@@ -265,7 +265,7 @@ if (event.post_type !== EventType.MESSAGE) return;  // 只处理消息事件
   // 错误: ctx.logger.warn(`(；′⌒`) 任务 ${jobId} 已移除`);
   ```
 - **图标**: 前端用 SVG 组件 (参考 `packages/webui/src/components/Icons.tsx`), 不用 emoji。
-- **站点图标**: 源文件为 `packages/webui/public/favicon.*` (支持 svg/png/ico/jpg/jpeg/webp/gif/avif, 目录内只能有一个), 构建期内联为 data URI; 超过 64KB 警告, 超过 256KB 构建失败。NapCat 默认以 iframe 嵌入插件页, 因此 favicon 只在独立打开或新窗口时生效, 不改变宿主标签页图标。默认图标取自 NapCatQQ (`packages/napcat-webui-frontend/public/favicon.ico`, Copyright © 2024 Mlikiowa), 原样未修改。
+- **站点图标**: 源文件为 `packages/webui/public/favicon.*` (支持 svg/png/ico/jpg/jpeg/webp/gif/avif, 目录内只能有一个), 构建期内联为 data URI; 超过 64KB 警告, 超过 256KB 构建失败。NapCat 默认以 iframe 嵌入插件页, 因此 favicon 只在独立打开或新窗口时生效, 不改变宿主标签页图标。默认图标为本项目自绘的「微博之眼」(`packages/webui/public/favicon.svg`), 侧边栏 Logo 使用同款标记 (`IconWeiboEye`)。
 - **WebUI 风格**: 主题色粉色 `#FB7299` (`bg-primary` / `text-primary`); 卡片用 `.card`; 激活态 `bg-primary text-white`; 暗色用 `dark:bg-[#1e1e20]`。禁止使用 CSS 渐变 (`linear-gradient` 等), 改用纯色。新增页面/组件须延续现有设计语言。
 - **开新项目**: 删除 `packages/shared/src/config.ts` 中 `FIELDS` 的 `example*` 示例字段与 `PluginConfig` 对应键; 修改 `packages/plugin/package.json` 的 `name` (必须以 `napcat-plugin-` 开头) / `plugin` / `description` / `author`; 替换 `packages/webui/public/favicon.*` (保持唯一文件, 换格式时先删除旧文件)。
 

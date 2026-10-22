@@ -416,6 +416,29 @@ export function IconAlert({
     );
 }
 
+/** 微博之眼 (与站点图标同款标记) */
+export function IconWeiboEye({
+    size,
+    className,
+}: IconProps = defaultProps) {
+    return (
+        <svg
+            aria-hidden="true"
+            width={size}
+            height={size}
+            viewBox="0 0 64 64"
+            fill="currentColor"
+            className={className}
+        >
+            <path
+                fillRule="evenodd"
+                d="M8 32C14.2 19.8 24.4 15.5 32 15.5s17.8 4.3 24 16.5C49.8 44.2 39.6 48.5 32 48.5S14.2 44.2 8 32Zm24-8.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Z"
+            />
+            <circle cx="35.2" cy="28.8" r="2.8" />
+        </svg>
+    );
+}
+
 /** 插件图标 */
 export function IconPlugin({
     size,

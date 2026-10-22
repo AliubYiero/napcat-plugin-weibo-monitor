@@ -7,8 +7,8 @@ import {
     IconGroup,
     IconHelp,
     IconKey,
-    IconPlugin,
     IconSettings,
+    IconWeiboEye,
 } from './Icons';
 
 interface SidebarProps {
@@ -42,7 +42,7 @@ export default function Sidebar({
             {/* Logo */}
             <div className="px-5 py-6 flex items-center gap-3">
                 <div className="sidebar-logo w-8 h-8 flex items-center justify-center bg-brand-500 rounded-lg text-white">
-                    <IconPlugin size={18} />
+                    <IconWeiboEye size={18} />
                 </div>
                 <div>
                     <h1 className="font-bold text-sm leading-tight text-gray-900 dark:text-white">

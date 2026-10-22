@@ -33,7 +33,7 @@ napcat-plugin-template/
 │   ├── webui/                # React SPA 前端（独立构建）
 │   │   ├── package.json
 │   │   ├── index.html
-│   │   ├── public/favicon.ico     # 站点图标（替换此文件即可自定义）
+│   │   ├── public/favicon.svg     # 站点图标（替换此文件即可自定义）
 │   │   ├── scripts/favicon.ts     # 图标扫描/内联（构建期）
 │   │   ├── vite.config.ts
 │   │   ├── tailwind.config.js
@@ -118,7 +118,7 @@ pnpm install
 
 ### 2.1 替换站点图标（可选）
 
-默认使用 NapCat 官方图标（来源: [NapCatQQ](https://github.com/NapNeko/NapCatQQ) `packages/napcat-webui-frontend/public/favicon.ico`, Copyright © 2024 Mlikiowa, 原样未修改）。
+默认使用自绘的「微博之眼」图标（`packages/webui/public/favicon.svg`，品牌粉 `#FB7299`），侧边栏 Logo 使用同款标记。
 
 替换 `packages/webui/public/favicon.*` 即可，支持 `svg / png / ico / jpg / jpeg / webp / gif / avif`，目录内只能保留一个 favicon 文件（换格式时先删除旧文件）。构建时图标会内联为 data URI 写入 `index.html`：超过 64KB 给出警告，超过 256KB 构建失败。
 
