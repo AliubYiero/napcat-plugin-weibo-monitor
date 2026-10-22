@@ -21,6 +21,7 @@ import type {
 import { browserService } from '../browser/service';
 import { sessionConfigService } from '../sessionConfigService';
 import { weiboApiService } from './apiService';
+import { weiboAvatarService } from './avatarService';
 import { weiboPushService } from './pushService';
 import { weiboRuntime } from './runtimeStatus';
 
@@ -96,6 +97,8 @@ class WeiboMonitorService {
 
         const seeded = this.seedCursor(uid, timeline.posts);
         this.store.addTarget(uid, screenName, avatar, target);
+        // 头像尽力缓存: 失败不影响订阅, 订阅页回退远程 URL
+        await weiboAvatarService.ensure(uid, avatar);
         const monitor = this.store.get(uid);
         if (!monitor) throw new Error('订阅写入失败');
 
@@ -115,6 +118,7 @@ class WeiboMonitorService {
 
         if (result.monitorRemoved) {
             WeiboCursorStore.getInstance().remove(uid);
+            weiboAvatarService.remove(uid);
             weiboRuntime.prune(
                 new Set(this.store.list().map((m) => m.uid)),
             );
@@ -139,7 +143,16 @@ class WeiboMonitorService {
             uid: monitor.uid,
             screenName: monitor.screenName,
             avatar: monitor.avatar,
-            targets: monitor.to.map((target) => ({ ...target })),
+            avatarUrl: monitor.avatarPath
+                ? `/weibo/avatar/${monitor.uid}`
+                : null,
+            targets: monitor.to.map((target) => ({
+                ...target,
+                enabled: sessionConfigService.isSessionEnabled(
+                    target.id,
+                    target.type,
+                ),
+            })),
         }));
     }
 

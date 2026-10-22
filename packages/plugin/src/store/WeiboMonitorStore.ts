@@ -167,6 +167,18 @@ export class WeiboMonitorStore extends BaseStore<WeiboMonitor> {
         );
     }
 
+    /** 记录本地头像副本 (文件名 + 对应的远程 URL) */
+    updateAvatar(
+        uid: string,
+        avatarPath: string,
+        avatarSource: string,
+    ): void {
+        this.updateItem(
+            (item) => item.uid === uid,
+            (item) => ({ ...item, avatarPath, avatarSource }),
+        );
+    }
+
     /** 清除所有不存在于 validUids 的记录 (订阅已空等) */
     prune(validUids: ReadonlySet<string>): void {
         this.mutate((items) =>

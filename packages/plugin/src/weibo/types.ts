@@ -19,8 +19,12 @@ export interface WeiboMonitor {
     uid: string;
     /** 博主昵称 */
     screenName: string;
-    /** 头像 URL */
+    /** 头像远程 URL (回退展示与变更检测的来源) */
     avatar: string;
+    /** 本地头像副本文件名 (`data/avatar/` 下), 未缓存时缺失 */
+    avatarPath?: string;
+    /** 本地副本对应的远程 URL, 与 `avatar` 不同即需要重新下载 */
+    avatarSource?: string;
     /** 订阅该博主的会话 */
     to: WeiboMonitorTarget[];
 }
@@ -33,6 +37,11 @@ export interface WeiboCursor {
     recentIds: string[];
     /** 最后更新时间 (毫秒时间戳) */
     updatedAt: number;
+    /**
+     * 暂停标记: 该 uid 的全部推送目标都被禁用时为 true。
+     * 重新启用后的首轮只重建水位线、不推送, 随后清除。
+     */
+    paused?: boolean;
 }
 
 /** 浏览器页面内一次接口请求的原始结果 */
@@ -237,5 +246,7 @@ export interface WeiboSubscriptionView {
     uid: string;
     screenName: string;
     avatar: string;
-    targets: WeiboMonitorTarget[];
+    /** 本地读图路由; 未缓存时为 null, 前端回退 `avatar` */
+    avatarUrl: string | null;
+    targets: Array<WeiboMonitorTarget & { enabled: boolean }>;
 }

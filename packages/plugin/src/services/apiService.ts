@@ -35,6 +35,7 @@ import {
 } from './browser/status';
 import { applyConfigSideEffects } from './configEffects';
 import { sessionConfigService } from './sessionConfigService';
+import { weiboAvatarService } from './weibo/avatarService';
 import { weiboCookieService } from './weibo/cookieService';
 import { weiboMonitorService } from './weibo/monitorService';
 import { weiboPollingService } from './weibo/pollingService';
@@ -303,7 +304,36 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
 
     /** 全部订阅 (WebUI 只读列表) */
     router.getNoAuth('/weibo/subscriptions', (_req, res) => {
-        res.json({ code: 0, data: weiboMonitorService.all() });
+        const data = weiboMonitorService.all();
+        // 历史数据与头像 URL 变更项在后台补拉; 前端据 pendingAvatars 再取一次
+        let pendingAvatars = 0;
+        for (const item of data) {
+            if (!weiboAvatarService.needsRefresh(item.uid)) continue;
+            pendingAvatars += 1;
+            weiboAvatarService.triggerEnsure(item.uid, item.avatar);
+        }
+
+        res.json({ code: 0, data, pendingAvatars });
+    });
+
+    /** 本地头像副本 (无鉴权: WebUI 的 img 无法携带 Bearer) */
+    router.getNoAuth('/weibo/avatar/:uid', (req, res) => {
+        const uid = req.params?.uid ?? '';
+        if (!/^\d{3,20}$/.test(uid)) {
+            return res
+                .status(400)
+                .json({ code: -1, message: '非法的博主 UID' });
+        }
+
+        const file = weiboAvatarService.resolveFile(uid);
+        if (!file) {
+            return res
+                .status(404)
+                .json({ code: -1, message: '头像未缓存' });
+        }
+
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(file);
     });
 
     /** 从指定会话移除订阅 */

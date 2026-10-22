@@ -32,6 +32,7 @@ import { registerApiRoutes } from './services/apiService';
 import { browserService } from './services/browser/service';
 import { ensureBrowserStatus } from './services/browser/status';
 import { applyConfigSideEffects } from './services/configEffects';
+import { weiboAvatarService } from './services/weibo/avatarService';
 import { weiboPollingService } from './services/weibo/pollingService';
 import type { PluginConfig } from './types';
 
@@ -66,6 +67,7 @@ export const plugin_init: PluginModule['plugin_init'] = async (
 
         // 5. 浏览器状态缓存与微博轮询
         ensureBrowserStatus();
+        weiboAvatarService.sweep();
         weiboPollingService.start();
 
         ctx.logger.info('插件初始化完成');
