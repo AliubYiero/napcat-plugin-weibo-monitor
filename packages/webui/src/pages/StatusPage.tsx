@@ -278,6 +278,8 @@ export default function StatusPage({ status }: StatusPageProps) {
                         下次 {formatTime(weibo.polling.nextPollAt)}
                         <span className="px-2">·</span>
                         间隔 {weibo.polling.intervalMinutes} 分钟
+                        <span className="px-2">·</span>
+                        {weibo.polling.scheduleLabel}
                     </div>
                 </div>
 

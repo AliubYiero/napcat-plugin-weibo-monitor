@@ -18,10 +18,11 @@
 | 指令接收→分发→执行链路、作用域校验、失败反馈 | [docs/instruction-pattern.md](docs/instruction-pattern.md) |
 | 发消息、消息段工厂、@全体成员三重前置校验 | [docs/message-send-pattern.md](docs/message-send-pattern.md) |
 | 帮助输出: 权威源 → 生成 → 产物 → 变体选择 | [docs/help-output-pattern.md](docs/help-output-pattern.md) |
+| 定时轮询、间隔语义、刻度网格、退避优先级 | [docs/poll-alignment-pattern.md](docs/poll-alignment-pattern.md) |
 | 领域术语 (含 _Avoid_ 反用词)、默认值语义 | [CONTEXT.md](CONTEXT.md) |
 | 难逆转的决策记录 | [docs/adr/](docs/adr/) |
 
-推荐阅读顺序: 总纲 → store → permission → config / webui-config / instruction → message-send / help-output。
+推荐阅读顺序: 总纲 → store → permission → config / webui-config / instruction → message-send / help-output → poll-alignment。
 
 ## 仓库结构
 
@@ -145,6 +146,13 @@ pnpm deploy:dev              # dev 部署: 以 <name>-dev 新 id 注册, 不覆�
 - 【必须】图片优先、文本回退; `isAdmin`/`isSuperAdmin` 互斥, `onlyPrivate`/`onlyGroup` 互斥。
 - 【必须】权限过滤: User 看无标记, Admin 看无标记 + `isAdmin`, SuperAdmin 看全部。
 - 【必须】`HelpVariant` 与 PNG 文件名、`HELP_TEXT_MAP` 键一一对应。
+
+**定时轮询** ([poll-alignment-pattern](docs/poll-alignment-pattern.md))
+- 【必须】用户可配间隔只承载一种语义: 相位对齐本地墙钟, 时长从上轮结束起算; 网格判定用 `m % 60 === 0 || 60 % m === 0`, 不维护枚举。
+- 【必须】网格原点用本地日历分量 (禁止 epoch 取模); 下一时刻严格未来, 错过刻度跳过不补。
+- 【必须】计划器只在 `start` / `reschedule` 重建, tick 收尾零模式分支; 即时执行不挪相位。
+- 【必须】退避优先且等满剩余 (禁止 `min`), 结束后回网格; 固定延迟从上一轮结束起算, 单飞。
+- 【必须】间隔归一为纯函数 (非法回退默认, 四舍五入, 钳 1..1440 不抛错); 定时器登记进 `pluginState.timers`。
 
 ## 代码片段
 

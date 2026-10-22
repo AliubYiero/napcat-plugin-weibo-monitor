@@ -221,6 +221,8 @@ export interface WeiboPollingStatus {
     state: PollingState;
     running: boolean;
     intervalMinutes: number;
+    /** 排期口径文案, 如「每小时整点」「每 10 分钟整分」「固定间隔 7 分钟」 */
+    scheduleLabel: string;
     lastPollAt: number | null;
     nextPollAt: number | null;
     backoffUntil: number | null;

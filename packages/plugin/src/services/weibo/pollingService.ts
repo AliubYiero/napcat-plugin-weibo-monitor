@@ -9,6 +9,11 @@ import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import { WeiboCursorStore } from '../../store/WeiboCursorStore';
 import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
+import {
+    createPollSchedule,
+    normalizePollIntervalMinutes,
+    type PollSchedule,
+} from '../../weibo/pollSchedule';
 import { resolvePollingState } from '../../weibo/pollingState';
 import {
     filterQualifiedPosts,
@@ -26,7 +31,6 @@ import { type TargetRuntime, weiboRuntime } from './runtimeStatus';
 const UID_INTERVAL_MS = 1500;
 const BACKOFF_MS = 30 * 60 * 1000;
 const DEFAULT_INTERVAL_MINUTES = 60;
-const MIN_INTERVAL_MINUTES = 1;
 
 interface PollOutcome {
     ok: boolean;
@@ -38,13 +42,18 @@ class WeiboPollingService {
     private started = false;
     private inFlight = false;
     private timer: ReturnType<typeof setTimeout> | null = null;
+    /** 计划器只在启动与配置变更时重建, tick 收尾只调用它, 不做模式判断 */
+    private planner: PollSchedule = createPollSchedule(
+        DEFAULT_INTERVAL_MINUTES,
+    );
 
     start(): void {
         if (this.started) return;
         this.started = true;
         weiboRuntime.running = true;
+        this.planner = createPollSchedule(this.intervalMinutes());
         pluginState.logger.info(
-            `(｡·ω·｡) 微博轮询已启动, 间隔 ${this.intervalMinutes()} 分钟`,
+            `(｡·ω·｡) 微博轮询已启动, 间隔 ${this.intervalMinutes()} 分钟 (${this.planner.label})`,
         );
         this.schedule(0);
     }
@@ -70,7 +79,8 @@ class WeiboPollingService {
     /** 配置变更后按新周期重新排期 */
     reschedule(): void {
         if (!this.started) return;
-        this.schedule(this.intervalMinutes() * 60 * 1000);
+        this.planner = createPollSchedule(this.intervalMinutes());
+        this.schedule(this.nextDelay());
     }
 
     getStatus(): WeiboPollingStatus {
@@ -89,6 +99,8 @@ class WeiboPollingService {
             }),
             running: weiboRuntime.running,
             intervalMinutes: this.intervalMinutes(),
+            scheduleLabel: createPollSchedule(this.intervalMinutes())
+                .label,
             lastPollAt: weiboRuntime.lastPollAt,
             nextPollAt: weiboRuntime.nextPollAt,
             backoffUntil: weiboRuntime.backoffUntil,
@@ -102,10 +114,9 @@ class WeiboPollingService {
     }
 
     private intervalMinutes(): number {
-        const value = pluginState.config.weiboPollIntervalMinutes;
-        return Number.isFinite(value) && value >= MIN_INTERVAL_MINUTES
-            ? value
-            : DEFAULT_INTERVAL_MINUTES;
+        return normalizePollIntervalMinutes(
+            pluginState.config.weiboPollIntervalMinutes,
+        );
     }
 
     private schedule(delayMs: number): void {
@@ -240,14 +251,13 @@ class WeiboPollingService {
         }
     }
 
-    private nextDelay(): number {
-        const intervalMs = this.intervalMinutes() * 60 * 1000;
+    private nextDelay(now: number = Date.now()): number {
         const backoff = weiboRuntime.backoffUntil;
-        if (!backoff) return intervalMs;
-        const remaining = backoff - Date.now();
-        return remaining > 0
-            ? Math.min(intervalMs, remaining)
-            : intervalMs;
+        if (backoff !== null && backoff > now) {
+            // 退避允许脱离网格: 等满剩余时间再试, 不被短间隔提前打断
+            return backoff - now;
+        }
+        return this.planner.nextDelay(now);
     }
 
     private enterBackoff(): void {

@@ -14,6 +14,7 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 | [instruction-pattern.md](./instruction-pattern.md) | 指令分发: 接收→分发→执行链路、作用域校验、失败反馈策略 |
 | [message-send-pattern.md](./message-send-pattern.md) | 消息发送: 发送工具收敛、消息段工厂 |
 | [help-output-pattern.md](./help-output-pattern.md) | 帮助输出: 权威源 → 生成 → 产物 → 运行时变体选择 |
+| [poll-alignment-pattern.md](./poll-alignment-pattern.md) | 定时轮询: 间隔语义、刻度网格、即时执行与退避优先级、假定时器测试 |
 
 ## 架构决策记录 (ADR)
 
@@ -23,6 +24,10 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 | [adr/0002-playwright-for-weibo-api.md](./adr/0002-playwright-for-weibo-api.md) | 微博接口调用统一走 Playwright 页面 |
 | [adr/0003-single-weibo-account.md](./adr/0003-single-weibo-account.md) | 单微博账号模型 |
 | [adr/0004-push-render-mode.md](./adr/0004-push-render-mode.md) | 推送呈现双模式 (图片 / 文本) 与长文补拉 |
+| [adr/0005-weibo-reader-core.md](./adr/0005-weibo-reader-core.md) | 微博拉取与渲染抽为不依赖 `pluginState` 的读取器 |
+| [adr/0006-cookie-validate-before-persist.md](./adr/0006-cookie-validate-before-persist.md) | Cookie 保存先校验候选, 通过才落盘 |
+| [adr/0007-session-gate-in-dispatch.md](./adr/0007-session-gate-in-dispatch.md) | 会话启用门禁从接收层下沉到分发层 |
+| [adr/0008-poll-alignment.md](./adr/0008-poll-alignment.md) | 轮询对齐到本地墙钟刻度 (整除 60 进网格, 其余固定延迟) |
 
 判据与写法见 [development-pattern.md](./development-pattern.md) 的"架构决策记录 (ADR) 纪律"。
 
@@ -41,5 +46,6 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 3. **[permission-pattern.md](./permission-pattern.md)** — 角色推导与线性比较; 它是指令门槛声明 (`requiredRole`) 的取值来源, 先读它再看指令范式更顺。
 4. **[config-pattern.md](./config-pattern.md)** 与 **[webui-config-pattern.md](./webui-config-pattern.md)** 与 **[instruction-pattern.md](./instruction-pattern.md)** — 配置的语义/清洗 (前者)、配置与 WebUI 的单源派生 (中者), 以及指令链路 (后者)。
 5. **[message-send-pattern.md](./message-send-pattern.md)** 与 **[help-output-pattern.md](./help-output-pattern.md)** — 横切能力, 写 handler 时随用随查。
+6. **[poll-alignment-pattern.md](./poll-alignment-pattern.md)** — 需要周期任务时读: 相位对齐、退避优先级与假定时器接线测试。
 
 同时将本模板的 `CONTEXT.md` 与 `AGENTS.md` 作为骨架复制到新项目, 再按新项目领域填充术语与实例。
