@@ -2,6 +2,7 @@ import type { Buffer } from 'node:buffer';
 import { buildPostCardHtml } from './card';
 import {
     extractLongText,
+    hasTruncationSignal,
     needsLongText,
     resolveLongTextId,
     withLongText,
@@ -12,6 +13,7 @@ import type {
     WeiboMyMblogResponse,
     WeiboPost,
     WeiboProfileResponse,
+    WeiboStatusResponse,
     WeiboUser,
 } from './types';
 
@@ -29,6 +31,19 @@ export interface ProfileResult {
     user: WeiboUser | null;
     message: string;
     failure: WeiboApiFailure;
+}
+
+export type WeiboStatusFailure =
+    | 'invalid'
+    | 'risk'
+    | 'not_found'
+    | null;
+
+export interface StatusResult {
+    ok: boolean;
+    post: WeiboPost | null;
+    message: string;
+    failure: WeiboStatusFailure;
 }
 
 export interface LongTextResult {
@@ -58,8 +73,10 @@ export interface WeiboReaderDeps {
 export interface WeiboReader {
     fetchFirstPage(uid: string): Promise<MyMblogResult>;
     fetchProfile(uid: string): Promise<ProfileResult>;
+    fetchStatus(id: string): Promise<StatusResult>;
     fetchLongText(mblogid: string): Promise<LongTextResult>;
     hydrate(post: WeiboPost): Promise<WeiboPost>;
+    hydrateStatus(post: WeiboPost): Promise<WeiboPost>;
     renderCard(post: WeiboPost): Promise<CardRenderResult>;
 }
 
@@ -75,6 +92,20 @@ export function extractUser(body: unknown): WeiboUser | null {
     return user && typeof user === 'object' ? user : null;
 }
 
+export function extractStatus(body: unknown): WeiboPost | null {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return null;
+    }
+    const response = body as WeiboStatusResponse;
+    if (response.ok !== 1) return null;
+
+    const id = response.idstr ?? response.mid ?? response.id;
+    if (id === undefined || id === null || String(id) === '') {
+        return null;
+    }
+    return response;
+}
+
 export function classifyFailure(
     status: number,
     body: unknown,
@@ -86,6 +117,34 @@ export function classifyFailure(
         const message = String(response.message ?? '');
         if (/登录|login|未登录|请先登录/i.test(message)) {
             return 'invalid';
+        }
+        return 'risk';
+    }
+
+    if (status >= 400) return 'risk';
+    return null;
+}
+
+export function classifyStatusFailure(
+    status: number,
+    body: unknown,
+): WeiboStatusFailure {
+    if (status === 404) return 'not_found';
+    if (status === 401) return 'invalid';
+    if (status === 418 || status === 403) return 'risk';
+
+    const response = body as { ok?: number; message?: string } | null;
+    if (response && response.ok === 0) {
+        const message = String(response.message ?? '');
+        if (/登录|login|未登录|请先登录/i.test(message)) {
+            return 'invalid';
+        }
+        if (
+            /不存在|已删除|删除|无权|无权限|没有权限|不可见|审核中|仅自己可见/.test(
+                message,
+            )
+        ) {
+            return 'not_found';
         }
         return 'risk';
     }
@@ -138,6 +197,25 @@ class WeiboReaderImpl implements WeiboReader {
         };
     }
 
+    async fetchStatus(id: string): Promise<StatusResult> {
+        const result = await this.deps.fetchApi(
+            `/ajax/statuses/show?id=${encodeURIComponent(id)}&locale=zh-CN&isGetLongText=true`,
+        );
+        const response = result.body as WeiboStatusResponse | null;
+        const post = extractStatus(result.body);
+        const ok = result.status < 400 && post !== null;
+        const failure = ok
+            ? null
+            : classifyStatusFailure(result.status, result.body);
+
+        return {
+            ok,
+            post,
+            message: String(response?.message ?? ''),
+            failure,
+        };
+    }
+
     async fetchLongText(mblogid: string): Promise<LongTextResult> {
         const result = await this.deps.fetchApi(
             `/ajax/statuses/longtext?id=${encodeURIComponent(mblogid)}`,
@@ -166,13 +244,11 @@ class WeiboReaderImpl implements WeiboReader {
     }
 
     async hydrate(post: WeiboPost): Promise<WeiboPost> {
-        const main = await this.hydrateOne(post);
-        const retweet = main.retweeted_status;
-        if (!retweet) return main;
+        return this.hydrateWith(post, needsLongText);
+    }
 
-        const original = await this.hydrateOne(retweet);
-        if (original === retweet) return main;
-        return { ...main, retweeted_status: original };
+    async hydrateStatus(post: WeiboPost): Promise<WeiboPost> {
+        return this.hydrateWith(post, hasTruncationSignal);
     }
 
     async renderCard(post: WeiboPost): Promise<CardRenderResult> {
@@ -191,8 +267,27 @@ class WeiboReaderImpl implements WeiboReader {
         }
     }
 
-    private async hydrateOne(post: WeiboPost): Promise<WeiboPost> {
-        if (!needsLongText(post)) return post;
+    private async hydrateWith(
+        post: WeiboPost,
+        shouldHydrate: (post: WeiboPost) => boolean,
+    ): Promise<WeiboPost> {
+        const main = await this.hydrateOne(post, shouldHydrate);
+        const retweet = main.retweeted_status;
+        if (!retweet) return main;
+
+        const original = await this.hydrateOne(
+            retweet,
+            shouldHydrate,
+        );
+        if (original === retweet) return main;
+        return { ...main, retweeted_status: original };
+    }
+
+    private async hydrateOne(
+        post: WeiboPost,
+        shouldHydrate: (post: WeiboPost) => boolean,
+    ): Promise<WeiboPost> {
+        if (!shouldHydrate(post)) return post;
 
         const mblogid = resolveLongTextId(post);
         if (!mblogid) {

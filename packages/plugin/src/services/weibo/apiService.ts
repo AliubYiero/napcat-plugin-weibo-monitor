@@ -4,6 +4,7 @@ import type {
     LongTextResult,
     MyMblogResult,
     ProfileResult,
+    StatusResult,
     WeiboApiFailure,
 } from '../../weibo/reader';
 import { browserService } from '../browser/service';
@@ -14,11 +15,15 @@ export type {
     LongTextResult,
     MyMblogResult,
     ProfileResult,
+    StatusResult,
     WeiboApiFailure,
+    WeiboStatusFailure,
 } from '../../weibo/reader';
 export {
     classifyFailure,
+    classifyStatusFailure,
     extractPosts,
+    extractStatus,
     extractUser,
 } from '../../weibo/reader';
 
@@ -37,6 +42,12 @@ class WeiboApiService {
 
     async fetchProfile(uid: string): Promise<ProfileResult> {
         const result = await weiboReader.fetchProfile(uid);
+        if (result.ok) WeiboCookieStore.getInstance().markSuccess();
+        return result;
+    }
+
+    async fetchStatus(id: string): Promise<StatusResult> {
+        const result = await weiboReader.fetchStatus(id);
         if (result.ok) WeiboCookieStore.getInstance().markSuccess();
         return result;
     }

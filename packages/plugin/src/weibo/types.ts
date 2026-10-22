@@ -141,6 +141,12 @@ export interface WeiboMyMblogResponse {
     [key: string]: unknown;
 }
 
+/** statuses/show 接口响应 (动态对象在顶层) */
+export interface WeiboStatusResponse extends WeiboPost {
+    ok?: number;
+    message?: string;
+}
+
 /** profile/info 接口响应 */
 export interface WeiboProfileResponse {
     ok?: number;

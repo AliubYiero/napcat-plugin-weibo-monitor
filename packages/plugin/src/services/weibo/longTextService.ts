@@ -10,6 +10,14 @@ class WeiboLongTextService {
         }
         return hydrated;
     }
+
+    async hydrateStatus(post: WeiboPost): Promise<WeiboPost> {
+        const hydrated = await weiboReader.hydrateStatus(post);
+        if (hydrated !== post) {
+            WeiboCookieStore.getInstance().markSuccess();
+        }
+        return hydrated;
+    }
 }
 
 export const weiboLongTextService = new WeiboLongTextService();

@@ -18,7 +18,11 @@ import {
     buildTextPresentation,
     type PresentationSegment,
 } from '../../weibo/presentation';
-import type { WeiboMonitor, WeiboPost } from '../../weibo/types';
+import type {
+    WeiboMonitor,
+    WeiboMonitorTarget,
+    WeiboPost,
+} from '../../weibo/types';
 import { sessionConfigService } from '../sessionConfigService';
 import { weiboLongTextService } from './longTextService';
 import { cardRenderService } from './renderService';
@@ -27,6 +31,11 @@ import { weiboRuntime } from './runtimeStatus';
 const MESSAGE_INTERVAL_MS = 500;
 
 type OutgoingMessage = Parameters<typeof sendPrivateMessage>[2];
+
+interface RenderedMessage {
+    primary: OutgoingMessage;
+    fallback: string;
+}
 
 export interface PushResult {
     pushed: number;
@@ -50,17 +59,7 @@ class WeiboPushService {
         }
 
         const content = await weiboLongTextService.hydrate(post);
-        const mode = pluginState.config.weiboPushRenderMode;
-        const cardImage =
-            mode === 'image'
-                ? await cardRenderService.render(content)
-                : null;
-        const primary = toMessage(
-            mode === 'image'
-                ? buildImagePresentation(content, cardImage)
-                : buildTextPresentation(content),
-        );
-        const fallback = buildPlainText(content);
+        const { primary, fallback } = await this.render(content);
 
         let pushed = 0;
         let failed = 0;
@@ -89,6 +88,33 @@ class WeiboPushService {
             `微博推送完成 @${monitor.screenName} (${monitor.uid}): 成功 ${pushed}, 失败 ${failed}`,
         );
         return { pushed, failed };
+    }
+
+    async pushPostTo(
+        post: WeiboPost,
+        target: WeiboMonitorTarget,
+    ): Promise<boolean> {
+        const { primary, fallback } = await this.render(post);
+        const ok = await this.send(target.type, target.id, primary);
+        if (ok) return true;
+        return this.send(target.type, target.id, fallback);
+    }
+
+    private async render(post: WeiboPost): Promise<RenderedMessage> {
+        const mode = pluginState.config.weiboPushRenderMode;
+        const cardImage =
+            mode === 'image'
+                ? await cardRenderService.render(post)
+                : null;
+
+        return {
+            primary: toMessage(
+                mode === 'image'
+                    ? buildImagePresentation(post, cardImage)
+                    : buildTextPresentation(post),
+            ),
+            fallback: buildPlainText(post),
+        };
     }
 
     private async send(

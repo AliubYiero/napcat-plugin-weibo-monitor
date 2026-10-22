@@ -18,6 +18,10 @@ export const weiboHelp: Cmd = {
                     cmd: '#weibo latest [UID]',
                     desc: '获取博主最新一条微博; 不填 UID 时使用本会话唯一的订阅',
                 },
+                {
+                    cmd: '#weibo get <动态ID>',
+                    desc: '按动态 ID 获取单条微博 (数字或短链)',
+                },
                 { cmd: '#weibo help', desc: '显示本帮助' },
             ],
         },

@@ -18,6 +18,16 @@ export function needsLongText(post: WeiboPost): boolean {
     return LONG_TEXT_LINK_RE.test(html);
 }
 
+/**
+ * show 接口已展开正文; 仅正文为空 (且标记长文) 或残留「全文/展开」链接时视为截断。
+ */
+export function hasTruncationSignal(post: WeiboPost): boolean {
+    const html = post.text ?? post.text_raw ?? '';
+    if (LONG_TEXT_LINK_RE.test(html)) return true;
+    if (html.trim()) return false;
+    return post.isLongText === true || Number(post.isLongText) === 1;
+}
+
 /** 取 longtext 接口所需的 mblogid; 缺失时返回空串 */
 export function resolveLongTextId(post: WeiboPost): string {
     return (post.mblogid ?? '').trim();

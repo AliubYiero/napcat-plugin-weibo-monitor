@@ -20,6 +20,7 @@ import type { UserRole, UserRoleName } from '../core/admin';
 import { addHandler } from './commands/addHandler';
 import { disableHandler } from './commands/disableHandler';
 import { enableHandler } from './commands/enableHandler';
+import { getHandler } from './commands/getHandler';
 import { helpHandler } from './commands/helpHandler';
 import { latestHandler } from './commands/latestHandler';
 import { listHandler } from './commands/listHandler';
@@ -116,6 +117,10 @@ export const rootInstructionSetMapper: Record<
         ],
     },
     list: { handler: listHandler, scopeRules: [{ args: 0 }] },
+    get: {
+        handler: getHandler,
+        scopeRules: [{ args: 0 }, { args: 1 }],
+    },
     latest: {
         handler: latestHandler,
         scopeRules: [{ args: 0 }, { args: 1 }],

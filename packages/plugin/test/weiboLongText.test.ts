@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     extractLongText,
+    hasTruncationSignal,
     needsLongText,
     resolveLongTextId,
     withLongText,
@@ -47,6 +48,45 @@ describe('needsLongText', () => {
         expect(needsLongText({ ...POST, isLongText: false })).toBe(
             false,
         );
+    });
+});
+
+describe('hasTruncationSignal', () => {
+    it('正文含全文或展开链接时判定为截断', () => {
+        expect(
+            hasTruncationSignal({
+                ...POST,
+                text: '正文 <a href="https://weibo.com/1">全文</a>',
+            }),
+        ).toBe(true);
+        expect(
+            hasTruncationSignal({
+                ...POST,
+                text: '正文 <a href="https://weibo.com/1">展开全文</a>',
+            }),
+        ).toBe(true);
+    });
+
+    it('正文为空且标记长文时判定为截断', () => {
+        expect(
+            hasTruncationSignal({
+                ...POST,
+                text: '',
+                isLongText: true,
+            }),
+        ).toBe(true);
+    });
+
+    it('正文为空但未标记长文时不是截断 (图片/视频动态)', () => {
+        expect(hasTruncationSignal({ ...POST, text: '' })).toBe(
+            false,
+        );
+    });
+
+    it('show 已展开的完整正文即使 isLongText 为真也不是截断', () => {
+        expect(
+            hasTruncationSignal({ ...POST, isLongText: true }),
+        ).toBe(false);
     });
 });
 
