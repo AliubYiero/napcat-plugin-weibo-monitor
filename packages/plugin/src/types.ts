@@ -9,9 +9,19 @@
  * 统一定义在 shared 包，此处仅重导出。
  */
 export type {
+    AddWeiboSubscriptionRequest,
+    AddWeiboSubscriptionResult,
     ApiResponse,
     PluginConfig,
     SessionConfig,
     SessionConfigBase,
     SessionType,
+    SetWeiboLimitRequest,
+    WeiboLimitMeta,
+    WeiboLimitResult,
+    WeiboLimitRow,
+    WeiboLimitsView,
+    WeiboSubscriptionTargetInput,
+    WeiboSubscriptionTargetResult,
+    WeiboWriteCode,
 } from 'shared';

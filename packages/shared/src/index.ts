@@ -12,6 +12,8 @@ export * from './displayTokens';
 export * from './help';
 // WebUI 骨架元信息 (页面清单 + PageId)
 export * from './ui';
+// 订阅与订阅上限的跨包契约
+export * from './weibo';
 
 // ==================== 会话级配置 ====================
 

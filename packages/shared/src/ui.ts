@@ -53,7 +53,7 @@ export const PAGES = [
     {
         id: 'subscriptions',
         title: '订阅',
-        description: '查看博主订阅关系与推送目标',
+        description: '查看与新增博主订阅, 调整会话订阅上限',
         icon: 'subscription',
         order: 25,
     },

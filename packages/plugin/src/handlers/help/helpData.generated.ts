@@ -53,8 +53,7 @@ export const HELP_PANELS: Cmd[] = [
                     },
                     {
                         "cmd": "#weibo max <N>",
-                        "desc": "设置本群订阅上限 (0-50)",
-                        "onlyGroup": true
+                        "desc": "设置本会话订阅上限 (0-50)"
                     }
                 ]
             },

@@ -22,7 +22,11 @@ import { HELP_PANELS } from '../handlers/help/helpData.generated';
 import { WeiboCookieStore } from '../store/WeiboCookieStore';
 import { WeiboCursorStore } from '../store/WeiboCursorStore';
 import { WeiboMonitorStore } from '../store/WeiboMonitorStore';
-import type { PluginConfig, SessionType } from '../types';
+import type {
+    PluginConfig,
+    SessionType,
+    WeiboSubscriptionTargetInput,
+} from '../types';
 import {
     getInstallState,
     runInstall,
@@ -37,6 +41,11 @@ import { applyConfigSideEffects } from './configEffects';
 import { sessionConfigService } from './sessionConfigService';
 import { weiboAvatarService } from './weibo/avatarService';
 import { weiboCookieService } from './weibo/cookieService';
+import {
+    MAX_LIMIT,
+    MIN_LIMIT,
+    weiboLimitService,
+} from './weibo/limitService';
 import { weiboMonitorService } from './weibo/monitorService';
 import { weiboPollingService } from './weibo/pollingService';
 import { weiboRuntime } from './weibo/runtimeStatus';
@@ -107,35 +116,9 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     /** 获取会话列表（群 + 好友，附带各会话启用状态） */
     router.getNoAuth('/sessions', async (_req, res) => {
         try {
-            const [groups, friends] = await Promise.all([
-                ctx.actions.call(
-                    'get_group_list',
-                    {},
-                    ctx.adapterName,
-                    ctx.pluginManager.config,
-                ) as Promise<
-                    Array<{
-                        group_id: number;
-                        group_name: string;
-                        member_count: number;
-                        max_member_count: number;
-                    }>
-                >,
-                ctx.actions.call(
-                    'get_friend_list',
-                    {},
-                    ctx.adapterName,
-                    ctx.pluginManager.config,
-                ) as Promise<
-                    Array<{
-                        user_id: number;
-                        nickname: string;
-                        remark?: string;
-                    }>
-                >,
-            ]);
+            const { groups, friends } = await fetchNapCatSessions(ctx);
 
-            const groupSessions = (groups || []).map((group) => {
+            const groupSessions = groups.map((group) => {
                 const id = String(group.group_id);
                 return {
                     id,
@@ -150,7 +133,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
                 };
             });
 
-            const friendSessions = (friends || []).map((friend) => {
+            const friendSessions = friends.map((friend) => {
                 const id = String(friend.user_id);
                 return {
                     id,
@@ -369,6 +352,194 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
         }
     });
 
+    /** 新增订阅 (可多目标; 逐目标结果, 成功项保留) */
+    router.postNoAuth('/weibo/subscriptions/add', async (req, res) => {
+        try {
+            const body = req.body as
+                | { uid?: unknown; targets?: unknown }
+                | undefined;
+            if (
+                !body ||
+                typeof body.uid !== 'string' ||
+                !Array.isArray(body.targets)
+            ) {
+                return res
+                    .status(400)
+                    .json({ code: -1, message: '参数错误' });
+            }
+
+            const targets: WeiboSubscriptionTargetInput[] = [];
+            for (const raw of body.targets) {
+                if (!raw || typeof raw !== 'object') {
+                    return res
+                        .status(400)
+                        .json({ code: -1, message: '参数错误' });
+                }
+                const item = raw as {
+                    type?: unknown;
+                    id?: unknown;
+                };
+                if (
+                    !isSessionType(item.type) ||
+                    typeof item.id !== 'string' ||
+                    !item.id
+                ) {
+                    return res
+                        .status(400)
+                        .json({ code: -1, message: '参数错误' });
+                }
+                targets.push({ type: item.type, id: item.id });
+            }
+
+            if (targets.length === 0) {
+                return res.status(400).json({
+                    code: -1,
+                    message: '请至少选择一个推送会话',
+                });
+            }
+
+            const outcome = await weiboMonitorService.addMany(
+                body.uid,
+                targets,
+            );
+            if (outcome.results.some((item) => item.ok)) {
+                weiboPollingService.requestImmediate();
+            }
+
+            res.json({
+                code: 0,
+                data: {
+                    uid: outcome.uid,
+                    screenName: outcome.screenName,
+                    results: outcome.results,
+                },
+            });
+        } catch (err) {
+            ctx.logger.error('新增微博订阅失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 全部现有会话的订阅上限 */
+    router.getNoAuth('/weibo/limits', async (_req, res) => {
+        try {
+            const { groups, friends } = await fetchNapCatSessions(ctx);
+            const sessions = [
+                ...groups.map((group) => {
+                    const id = String(group.group_id);
+                    return {
+                        type: 'group' as const,
+                        id,
+                        enabled: sessionConfigService.isSessionEnabled(
+                            id,
+                            'group',
+                        ),
+                    };
+                }),
+                ...friends.map((friend) => {
+                    const id = String(friend.user_id);
+                    return {
+                        type: 'private' as const,
+                        id,
+                        enabled: sessionConfigService.isSessionEnabled(
+                            id,
+                            'private',
+                        ),
+                    };
+                }),
+            ];
+            res.json({
+                code: 0,
+                data: weiboLimitService.view(sessions),
+            });
+        } catch (err) {
+            ctx.logger.error('读取会话订阅上限失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 设置某会话的订阅上限 */
+    router.postNoAuth('/weibo/limits', (req, res) => {
+        const body = req.body as
+            | { type?: unknown; id?: unknown; max?: unknown }
+            | undefined;
+        if (
+            !body ||
+            !isSessionType(body.type) ||
+            typeof body.id !== 'string' ||
+            !body.id
+        ) {
+            return res
+                .status(400)
+                .json({ code: -1, message: '参数错误' });
+        }
+        if (
+            typeof body.max !== 'number' ||
+            !Number.isInteger(body.max) ||
+            body.max < MIN_LIMIT ||
+            body.max > MAX_LIMIT
+        ) {
+            return res.status(400).json({
+                code: -1,
+                message: `上限必须是 ${MIN_LIMIT}~${MAX_LIMIT} 的整数`,
+            });
+        }
+
+        try {
+            weiboLimitService.set(
+                { type: body.type, id: body.id },
+                body.max,
+            );
+            ctx.logger.info(
+                `WebUI 设置订阅上限: ${body.type}:${body.id}=${body.max}`,
+            );
+            res.json({
+                code: 0,
+                data: {
+                    type: body.type,
+                    id: body.id,
+                    ok: true,
+                    message: '已更新上限',
+                },
+            });
+        } catch (err) {
+            res.status(400).json({
+                code: -1,
+                message: err instanceof Error ? err.message : String(err),
+            });
+        }
+    });
+
+    /** 恢复某会话的默认订阅上限 */
+    router.deleteNoAuth('/weibo/limits/:type/:id', (req, res) => {
+        const type = req.params?.type;
+        const id = req.params?.id;
+        if (!isSessionType(type) || !id) {
+            return res
+                .status(400)
+                .json({ code: -1, message: '参数错误' });
+        }
+
+        try {
+            weiboLimitService.clear({ type, id });
+            ctx.logger.info(
+                `WebUI 恢复默认订阅上限: ${type}:${id}`,
+            );
+            res.json({
+                code: 0,
+                data: {
+                    type,
+                    id,
+                    ok: true,
+                    message: '已恢复默认上限',
+                },
+            });
+        } catch (err) {
+            ctx.logger.error('恢复默认订阅上限失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
     // ==================== 浏览器（无鉴权）====================
 
     /** 只读缓存, 零副作用 (WebUI 每 5 秒轮询) */
@@ -414,6 +585,43 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     ctx.logger.debug('API 路由注册完成');
+}
+
+interface NapCatGroupInfo {
+    group_id: number;
+    group_name: string;
+    member_count: number;
+    max_member_count: number;
+}
+
+interface NapCatFriendInfo {
+    user_id: number;
+    nickname: string;
+    remark?: string;
+}
+
+/** 拉取宿主的群/好友列表 (会话页与上限页共用) */
+async function fetchNapCatSessions(
+    ctx: NapCatPluginContext,
+): Promise<{
+    groups: NapCatGroupInfo[];
+    friends: NapCatFriendInfo[];
+}> {
+    const [groups, friends] = await Promise.all([
+        ctx.actions.call(
+            'get_group_list',
+            {},
+            ctx.adapterName,
+            ctx.pluginManager.config,
+        ) as Promise<NapCatGroupInfo[]>,
+        ctx.actions.call(
+            'get_friend_list',
+            {},
+            ctx.adapterName,
+            ctx.pluginManager.config,
+        ) as Promise<NapCatFriendInfo[]>,
+    ]);
+    return { groups: groups || [], friends: friends || [] };
 }
 
 function buildWeiboStatus(): Record<string, unknown> {

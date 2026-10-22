@@ -126,6 +126,7 @@ export const rootInstructionSetMapper: Record<
             { args: 0, scope: 'group', requiredRole: 'admin' },
             { args: 0, scope: 'private', requiredRole: 'superAdmin' },
             { args: 1, scope: 'group', requiredRole: 'superAdmin' },
+            { args: 1, scope: 'private', requiredRole: 'superAdmin' },
         ],
     },
     // 会话开关: 唯一豁免会话启用门禁的指令 (否则未启用的群无法自救)

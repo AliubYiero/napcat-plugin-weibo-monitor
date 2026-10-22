@@ -63,12 +63,20 @@ class SessionConfigService {
         type: SessionType,
         fallback: number,
     ): number {
+        return this.getWeiboLimitOverride(id, type) ?? fallback;
+    }
+
+    /** 本会话显式写入的上限覆盖; 未覆盖时返回 undefined */
+    getWeiboLimitOverride(
+        id: string,
+        type: SessionType,
+    ): number | undefined {
         const value = this.store.find(id, type)?.weiboLimit;
         return typeof value === 'number' &&
             Number.isInteger(value) &&
             value >= 0
             ? value
-            : fallback;
+            : undefined;
     }
 
     /** 设置本会话的订阅上限 (只允许非负整数) */
@@ -81,6 +89,27 @@ class SessionConfigService {
             throw new Error('订阅上限必须是非负整数');
         }
         this.store.setMany([{ id, type, config: { weiboLimit: limit } }]);
+    }
+
+    /**
+     * 清除本会话的订阅上限覆盖, 回落到按类型推导的默认值。
+     * 记录上没有其他业务字段时整条删除, 避免留下空记录。
+     */
+    clearWeiboLimit(id: string, type: SessionType): void {
+        const existing = this.store.find(id, type);
+        if (!existing) return;
+
+        const next = { ...existing };
+        delete next.weiboLimit;
+        if (
+            next.enabled === undefined &&
+            Object.keys(next).length <= 2
+        ) {
+            this.store.remove(id, type);
+            return;
+        }
+        // undefined 在落盘时会被 JSON.stringify 丢弃, 内存中也不参与上限判定
+        this.store.update(id, type, { weiboLimit: undefined });
     }
 }
 

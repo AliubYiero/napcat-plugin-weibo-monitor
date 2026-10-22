@@ -2,6 +2,8 @@
 import type { ApiResponse, PluginConfig } from 'shared';
 
 export type {
+    AddWeiboSubscriptionRequest,
+    AddWeiboSubscriptionResult,
     ApiResponse,
     Cmd,
     ContentHelp,
@@ -13,6 +15,14 @@ export type {
     SessionConfig,
     SessionConfigBase,
     SessionType,
+    SetWeiboLimitRequest,
+    WeiboLimitMeta,
+    WeiboLimitResult,
+    WeiboLimitRow,
+    WeiboLimitsView,
+    WeiboSubscriptionTargetInput,
+    WeiboSubscriptionTargetResult,
+    WeiboWriteCode,
 } from 'shared';
 
 export interface PluginStatus {
