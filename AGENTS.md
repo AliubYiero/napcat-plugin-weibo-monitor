@@ -111,7 +111,7 @@ pnpm deploy:dev              # dev 部署: 以 <name>-dev 新 id 注册, 不覆�
 - 【必须】描述符是 ctx-free 纯数据; 需要 ctx 的 Schema 映射必须参数注入 (`buildConfigSchema(ctx)`, 禁止静态 import 业务模块)。
 - 【必须】运行时数据只允许进入 `display` 展示块, 不得进入可保存配置项。
 - 【必须】`FIELDS` 的 `section` 是分隔行 (无 key、不落盘): WebUI 以它切分卡片, 原生面板渲染为分组标题; 被 `scope` 过滤时不可见也不作为边界。
-- 【必须】会话级配置不进配置文件 (由 store 承载), 提供单一查询入口并在消息入口短路。
+- 【必须】会话级配置不进配置文件 (由 store 承载), 提供单一查询入口; 会话启用门禁由分发层读取该入口后短路, **不得在消息入口短路** (否则会话开关指令无法执行, 见 ADR 0007)。
 - 【必须】WebUI 骨架 (页面/菜单/标题) 同样单源; URL 用 hash 且为当前页唯一真相源。
 
 **权限** ([permission-pattern](docs/permission-pattern.md))
@@ -124,9 +124,10 @@ pnpm deploy:dev              # dev 部署: 以 <name>-dev 新 id 注册, 不覆�
 - 【必须】裁剪档位时 `UserRole['role']` 与 `ROLE_LEVEL` 同步收窄。
 
 **指令分发** ([instruction-pattern](docs/instruction-pattern.md))
-- 【必须】接收层四步顺序固定 (群启用检查 → 触发判定 → 切词 → 分发), 整函数包 try/catch。
-- 【必须】接收层与 handler 内不做权限校验; 校验时机与失败反馈收敛在分发层。
-- 【必须】失败反馈不对称: 权限不足与未知指令静默, 作用域不符回复提示。
+- 【必须】接收层三步顺序固定 (触发判定 → 切词 → 分发), 整函数包 try/catch。
+- 【必须】接收层与 handler 内不做权限校验; 权限、作用域与会话启用校验的时机及失败反馈收敛在分发层。
+- 【必须】失败反馈不对称: 权限不足与未知指令静默, 作用域不符回复提示, 会话未启用只提示超管。
+- 【必须】会话门禁默认生效 (`requiresSessionEnabled`, 默认 `true`), 只有开关类指令显式声明 `false`; 豁免声明在指令定义上, 不在接收层特判。
 - 【必须】`prefix` 与 `atBot` 两种触发方式相互独立 (空数组 = 不触发); 只剥离开头第一个匹配 `selfId` 的 at 段, 剥离后 `trimStart()`。
 - 【必须】`selfId` 取自 `pluginState.selfId`, 不硬编码; CQ 大小写不敏感, `qq` 精确等于 `selfId`。
 - 【必须】指令名统一 `toLocaleLowerCase()`; 新增指令 = 注册表加一行。
