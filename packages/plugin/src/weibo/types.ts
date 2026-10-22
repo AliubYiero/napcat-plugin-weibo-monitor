@@ -66,6 +66,21 @@ export interface WeiboPicInfo {
     large?: { url?: string };
     bmiddle?: { url?: string };
     thumbnail?: { url?: string };
+    pic_id?: string;
+    [key: string]: unknown;
+}
+
+/** 混合媒体项 (图片可能只在这里携带地址) */
+export interface WeiboMixMediaItem {
+    type?: string;
+    id?: string;
+    data?: WeiboPicInfo;
+    [key: string]: unknown;
+}
+
+/** 混合媒体列表 */
+export interface WeiboMixMediaInfo {
+    items?: WeiboMixMediaItem[];
     [key: string]: unknown;
 }
 
@@ -105,6 +120,7 @@ export interface WeiboPost {
     text_raw?: string;
     pic_ids?: string[];
     pic_infos?: Record<string, WeiboPicInfo>;
+    mix_media_info?: WeiboMixMediaInfo;
     page_info?: WeiboPageInfo;
     user?: WeiboUser;
     retweeted_status?: WeiboPost | null;

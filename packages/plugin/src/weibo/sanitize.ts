@@ -126,6 +126,13 @@ const NAMED_ENTITIES: Record<string, string> = {
     apos: "'",
     nbsp: '\u00a0',
 };
+const CONTENT_URL_RE =
+    /https?:\/\/[^\s<>"'，。；：！？、）】》”’]+/gi;
+const CONTENT_MENTION_RE =
+    /(?<![\w.@])@[\w\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af·-]{1,30}/g;
+const CONTENT_TOPIC_RE = /(?<![\w#])#[^#\s<>"']{1,40}#/g;
+const URL_TRAILING_PUNCTUATION_RE =
+    /[.,;:!?，。；：！？、）】》”’]+$/u;
 
 /**
  * 净化微博正文 HTML: 仅保留 a / img / br。
@@ -148,13 +155,19 @@ export function sanitizeWeiboHtml(html: string): string {
 
     for (const token of source.match(TOKEN_RE) ?? []) {
         if (!token.startsWith('<')) {
-            const text = escapeHtml(decodeEntities(token)).replace(
-                /\r?\n/g,
-                '<br>',
-            );
-            out += linkHref
-                ? `<a href="${linkHref}" target="_blank" rel="noopener noreferrer">${text}</a>`
-                : text;
+            const decoded = decodeEntities(token);
+            if (linkHref) {
+                const text = escapeHtml(decoded).replace(
+                    /\r?\n/g,
+                    '<br>',
+                );
+                out += `<a href="${linkHref}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+            } else {
+                out += decoded
+                    .split(/\r?\n/)
+                    .map(linkifyContentLine)
+                    .join('<br>');
+            }
             continue;
         }
 
@@ -192,6 +205,91 @@ export function sanitizeWeiboHtml(html: string): string {
     }
 
     return out;
+}
+
+interface ContentMatch {
+    start: number;
+    end: number;
+    html: string;
+    priority: number;
+}
+
+/**
+ * 将纯文本里的 URL / @用户 / #话题# 转成链接。
+ *
+ * 只处理不在现有 `<a>` 内的文本; URL 优先于其内部的 @ / #,
+ * 邮箱 (如 `nox@vrp.live`) 不会被误判为 @ 提及。
+ */
+function linkifyContentLine(line: string): string {
+    if (!line) return '';
+
+    const matches: ContentMatch[] = [];
+    for (const match of line.matchAll(CONTENT_URL_RE)) {
+        const start = match.index ?? 0;
+        const raw = match[0].replace(URL_TRAILING_PUNCTUATION_RE, '');
+        if (!raw) continue;
+        matches.push({
+            start,
+            end: start + raw.length,
+            html: contentAnchor(raw, raw),
+            priority: 0,
+        });
+    }
+
+    for (const match of line.matchAll(CONTENT_MENTION_RE)) {
+        const start = match.index ?? 0;
+        const raw = match[0];
+        const name = raw.slice(1);
+        if (!name) continue;
+        matches.push({
+            start,
+            end: start + raw.length,
+            html: contentAnchor(
+                `https://weibo.com/n/${encodeURIComponent(name)}`,
+                raw,
+            ),
+            priority: 1,
+        });
+    }
+
+    for (const match of line.matchAll(CONTENT_TOPIC_RE)) {
+        const start = match.index ?? 0;
+        const raw = match[0];
+        if (raw.length < 3) continue;
+        matches.push({
+            start,
+            end: start + raw.length,
+            html: contentAnchor(
+                `https://s.weibo.com/weibo?q=${encodeURIComponent(raw)}`,
+                raw,
+            ),
+            priority: 2,
+        });
+    }
+
+    if (matches.length === 0) return escapeHtml(line);
+
+    matches.sort(
+        (a, b) =>
+            a.start - b.start ||
+            a.priority - b.priority ||
+            b.end - a.end,
+    );
+
+    let out = '';
+    let cursor = 0;
+    for (const match of matches) {
+        if (match.start < cursor) continue;
+        out += escapeHtml(line.slice(cursor, match.start));
+        out += match.html;
+        cursor = match.end;
+    }
+    out += escapeHtml(line.slice(cursor));
+    return out;
+}
+
+function contentAnchor(href: string, label: string): string {
+    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
 }
 
 interface TextLinkState {
@@ -357,7 +455,9 @@ function safeImageUrl(raw: string): string {
 
 function isEmojiImageUrl(raw: string): boolean {
     try {
-        return new URL(raw).hostname.toLowerCase() === 'face.t.sinajs.cn';
+        return (
+            new URL(raw).hostname.toLowerCase() === 'face.t.sinajs.cn'
+        );
     } catch {
         return false;
     }
@@ -374,7 +474,8 @@ function safeLinkUrl(raw: string, allowImageHosts = false): string {
             host === 't.cn' ||
             host.endsWith('.t.cn') ||
             (allowImageHosts &&
-                (host === 'sinaimg.cn' || host.endsWith('.sinaimg.cn')))
+                (host === 'sinaimg.cn' ||
+                    host.endsWith('.sinaimg.cn')))
         );
     });
 }

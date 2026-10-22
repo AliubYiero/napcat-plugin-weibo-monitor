@@ -92,6 +92,49 @@ describe('sanitizeWeiboHtml', () => {
     it('文本节点被转义', () => {
         expect(sanitizeWeiboHtml('a &lt; b')).toBe('a &lt; b');
     });
+
+    it('纯文本 @、#话题# 与 URL 转为链接', () => {
+        const html = sanitizeWeiboHtml(
+            '@foo #话题# https://example.com/a?x=1&y=2',
+        );
+        expect(html).toContain('href="https://weibo.com/n/foo"');
+        expect(html).toContain(
+            'href="https://s.weibo.com/weibo?q=%23%E8%AF%9D%E9%A2%98%23"',
+        );
+        expect(html).toContain(
+            'href="https://example.com/a?x=1&amp;y=2"',
+        );
+        expect(html.match(/<a /g)).toHaveLength(3);
+    });
+
+    it('邮箱不会被误判为 @ 提及', () => {
+        const html = sanitizeWeiboHtml('联系 nox@vrp.live');
+        expect(html).not.toContain('weibo.com/n/');
+        expect(html).toContain('nox@vrp.live');
+    });
+
+    it('转发链的 // 与冒号保持为普通文本', () => {
+        const html = sanitizeWeiboHtml('//@a://@b: 内容');
+        expect(html).toContain('//<a href="https://weibo.com/n/a"');
+        expect(html).toContain('://<a href="https://weibo.com/n/b"');
+        expect(html.match(/<a /g)).toHaveLength(2);
+    });
+
+    it('已有链接不会被重复包裹', () => {
+        const html = sanitizeWeiboHtml(
+            '<a href="https://weibo.com/n/foo">@foo</a>',
+        );
+        expect(html.match(/<a /g)).toHaveLength(1);
+        expect(html).toContain('>@foo</a>');
+    });
+
+    it('URL 末尾标点不进入链接', () => {
+        const html = sanitizeWeiboHtml(
+            '看 https://example.com/a，然后',
+        );
+        expect(html).toContain('href="https://example.com/a"');
+        expect(html).toContain('</a>，然后');
+    });
 });
 
 describe('sanitizeWeiboText', () => {
