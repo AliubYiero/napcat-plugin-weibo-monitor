@@ -59,6 +59,30 @@ export class WeiboCursorStore {
         this.save();
     }
 
+    /**
+     * 标记/清除暂停拉取状态 (幂等, 无变化时不落盘)
+     *
+     * 暂停标记持久化, 使插件重启后重新启用仍能走「游标重建不补发」。
+     */
+    setPaused(uid: string, paused: boolean): void {
+        const current = this.data[uid];
+        if (paused) {
+            if (current?.paused === true) return;
+            this.data[uid] = {
+                ...(current ?? EMPTY),
+                paused: true,
+            };
+        } else {
+            if (!current || current.paused !== true) return;
+            this.data[uid] = {
+                watermark: current.watermark,
+                recentIds: current.recentIds,
+                updatedAt: current.updatedAt,
+            };
+        }
+        this.save();
+    }
+
     remove(uid: string): void {
         if (!(uid in this.data)) return;
         delete this.data[uid];
@@ -116,7 +140,12 @@ function normalizeCursor(value: unknown): WeiboCursor | null {
         : [];
     const updatedAt =
         typeof value.updatedAt === 'number' ? value.updatedAt : 0;
-    return { watermark, recentIds, updatedAt };
+    return {
+        watermark,
+        recentIds,
+        updatedAt,
+        paused: value.paused === true,
+    };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

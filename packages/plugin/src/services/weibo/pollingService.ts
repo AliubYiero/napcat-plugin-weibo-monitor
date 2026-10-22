@@ -10,9 +10,13 @@ import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import { WeiboCursorStore } from '../../store/WeiboCursorStore';
 import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
 import { resolvePollingState } from '../../weibo/pollingState';
-import { filterQualifiedPosts } from '../../weibo/predicate';
+import {
+    filterQualifiedPosts,
+    getPostId,
+} from '../../weibo/predicate';
 import type { WeiboPollingStatus } from '../../weibo/types';
 import { resolveWatermark } from '../../weibo/watermark';
+import { sessionConfigService } from '../sessionConfigService';
 import type { WeiboApiFailure } from './apiService';
 import { weiboApiService } from './apiService';
 import { weiboCookieService } from './cookieService';
@@ -159,14 +163,37 @@ class WeiboPollingService {
                 return;
             }
 
+            // 暂停拉取: 全部推送目标都被禁用的 uid 本轮不请求, 并持久化标记。
+            // 重新启用后的首轮由 pollMonitor 走「游标重建」, 不补发禁用期动态。
+            const cursorStore = WeiboCursorStore.getInstance();
+            const activeMonitors = monitors.filter((monitor) => {
+                const enabled = monitor.to.some((target) =>
+                    sessionConfigService.isSessionEnabled(
+                        target.id,
+                        target.type,
+                    ),
+                );
+                if (!enabled)
+                    cursorStore.setPaused(monitor.uid, true);
+                return enabled;
+            });
+            if (activeMonitors.length === 0) {
+                weiboRuntime.clearLastError();
+                return;
+            }
+
             let succeeded = 0;
             let failureMessage: string | null = null;
             let terminalFailure: WeiboApiFailure = null;
 
-            for (let index = 0; index < monitors.length; index += 1) {
+            for (
+                let index = 0;
+                index < activeMonitors.length;
+                index += 1
+            ) {
                 if (!this.started) break;
                 const outcome = await this.pollMonitor(
-                    monitors[index],
+                    activeMonitors[index],
                 );
 
                 if (outcome.ok) {
@@ -186,7 +213,7 @@ class WeiboPollingService {
                     break;
                 }
 
-                if (index < monitors.length - 1) {
+                if (index < activeMonitors.length - 1) {
                     await sleep(UID_INTERVAL_MS);
                 }
             }
@@ -280,6 +307,25 @@ class WeiboPollingService {
 
         const cursorStore = WeiboCursorStore.getInstance();
         const cursor = cursorStore.get(monitor.uid);
+
+        // 暂停后重新启用的首轮: 只把水位线推到最新一条, 不推送任何动态。
+        // 与「游标重建」同语义——止损, 不补发禁用期的历史。
+        if (cursor?.paused) {
+            const newest = qualified[0];
+            if (newest) {
+                cursorStore.set(
+                    monitor.uid,
+                    getPostId(newest),
+                    qualified.slice(0, 20).map(getPostId),
+                );
+            }
+            cursorStore.setPaused(monitor.uid, false);
+            pluginState.logger.info(
+                `博主 ${monitor.uid} 已恢复推送, 水位线已重建 (不补发期间动态)`,
+            );
+            return { ok: true, failure: null, message: null };
+        }
+
         const selection = resolveWatermark(qualified, {
             watermark: cursor?.watermark ?? null,
             recentIds: cursor?.recentIds ?? [],
