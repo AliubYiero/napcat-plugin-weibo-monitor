@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { IconAlert, IconRefresh, IconX } from '../components/Icons';
 import { showToast } from '../hooks/useToast';
-import type { WeiboSubscription } from '../types';
-import { noAuthFetch } from '../utils/api';
+import type {
+    WeiboSubscription,
+    WeiboSubscriptionsResult,
+} from '../types';
+import { noAuthFetch, noAuthUrl } from '../utils/api';
 
 interface PendingRemoval {
     uid: string;
@@ -20,13 +23,28 @@ export default function SubscriptionsPage() {
     const [pending, setPending] = useState<PendingRemoval | null>(
         null,
     );
+    const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
 
     const fetchSubscriptions = useCallback(async () => {
-        const res = await noAuthFetch<WeiboSubscription[]>(
+        const res = (await noAuthFetch<WeiboSubscription[]>(
             '/weibo/subscriptions',
-        );
+        )) as WeiboSubscriptionsResult;
         if (res.code === 0 && res.data) {
             setSubscriptions(res.data);
+        }
+        // 后端正在后台补拉头像: 只自动重试一次, 避免轮询
+        if (
+            (res.pendingAvatars ?? 0) > 0 &&
+            retryTimer.current === null
+        ) {
+            retryTimer.current = setTimeout(() => {
+                retryTimer.current = null;
+                void fetchSubscriptions().catch(() => {
+                    showToast('获取订阅列表失败', 'error');
+                });
+            }, 3000);
         }
     }, []);
 
@@ -34,6 +52,12 @@ export default function SubscriptionsPage() {
         fetchSubscriptions()
             .catch(() => showToast('获取订阅列表失败', 'error'))
             .finally(() => setLoading(false));
+        return () => {
+            if (retryTimer.current !== null) {
+                clearTimeout(retryTimer.current);
+                retryTimer.current = null;
+            }
+        };
     }, [fetchSubscriptions]);
 
     const refresh = async () => {
@@ -159,7 +183,13 @@ export default function SubscriptionsPage() {
                                     <td className="py-3 px-5">
                                         <div className="flex items-center gap-2.5">
                                             <Avatar
-                                                src={item.avatar}
+                                                src={
+                                                    item.avatarUrl
+                                                        ? noAuthUrl(
+                                                              item.avatarUrl,
+                                                          )
+                                                        : item.avatar
+                                                }
                                                 name={item.screenName}
                                             />
                                             <span className="font-medium">
@@ -183,6 +213,11 @@ export default function SubscriptionsPage() {
                                                             ? '群'
                                                             : '私聊'}{' '}
                                                         {target.id}
+                                                        {!target.enabled && (
+                                                            <span className="text-[10px] px-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                                                已禁用
+                                                            </span>
+                                                        )}
                                                         <button
                                                             type="button"
                                                             className="text-gray-400 hover:text-red-500"
@@ -229,11 +264,15 @@ export default function SubscriptionsPage() {
 }
 
 function Avatar({ src, name }: { src: string; name: string }) {
-    if (src) {
+    const [failedSrc, setFailedSrc] = useState<string | null>(null);
+    const failed = failedSrc === src;
+
+    if (src && !failed) {
         return (
             <img
                 src={src}
                 alt={name}
+                onError={() => setFailedSrc(src)}
                 className="w-8 h-8 rounded-full object-cover bg-gray-100"
             />
         );

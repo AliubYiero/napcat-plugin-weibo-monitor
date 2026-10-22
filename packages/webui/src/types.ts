@@ -1,5 +1,5 @@
 /** WebUI 前端类型定义 */
-import type { PluginConfig } from 'shared';
+import type { ApiResponse, PluginConfig } from 'shared';
 
 export type {
     ApiResponse,
@@ -88,9 +88,21 @@ export interface WeiboStatus {
 export interface WeiboSubscription {
     uid: string;
     screenName: string;
+    /** 远程头像 URL (本地副本缺失时的回退) */
     avatar: string;
-    targets: Array<{ type: 'group' | 'private'; id: string }>;
+    /** 插件本地头像路径; 未缓存时为 null */
+    avatarUrl: string | null;
+    targets: Array<{
+        type: 'group' | 'private';
+        id: string;
+        enabled: boolean;
+    }>;
 }
+
+/** GET /weibo/subscriptions 的响应 (后台补拉头像时带 pendingAvatars) */
+export type WeiboSubscriptionsResult = ApiResponse<
+    WeiboSubscription[]
+> & { pendingAvatars?: number };
 
 export interface CookieActionResult {
     valid: boolean;

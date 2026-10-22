@@ -40,6 +40,15 @@ function buildUrl(base: string, path: string): string {
 }
 
 /**
+ * 无认证 API 的完整地址
+ *
+ * 供 `img` / `a` 等无法携带请求头的场景使用 (如本地头像副本)。
+ */
+export function noAuthUrl(path: string): string {
+    return buildUrl(API_BASE_NO_AUTH, path);
+}
+
+/**
  * 无认证 API 请求
  * 用于插件自带 WebUI 页面调用后端 router.getNoAuth / router.postNoAuth 注册的路由
  */
