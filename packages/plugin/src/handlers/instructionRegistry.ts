@@ -18,6 +18,8 @@ import type { OB11Message } from 'napcat-types/napcat-onebot';
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import type { UserRole, UserRoleName } from '../core/admin';
 import { addHandler } from './commands/addHandler';
+import { disableHandler } from './commands/disableHandler';
+import { enableHandler } from './commands/enableHandler';
 import { helpHandler } from './commands/helpHandler';
 import { latestHandler } from './commands/latestHandler';
 import { listHandler } from './commands/listHandler';
@@ -50,12 +52,19 @@ export interface ScopeRule {
 /** 指令定义: 一个执行函数 + 可选的门槛声明 */
 export interface InstructionDefinition {
     handler: InstructionHandler;
-    /** 执行所需最低角色, 缺省 user (所有人可用) */
+    /** 执行所需最低角色; 缺省 user (所有人可用) */
     requiredRole?: UserRoleName;
-    /** 允许的会话类型, 缺省不限; 不满足时回复固定提示 */
+    /** 允许的会话类型; 缺省不限; 不满足时回复固定提示 */
     scope?: 'group' | 'private';
     /**
-     * 形态化作用域规则 (进阶): 声明后按 args 数匹配第一条规则,
+     * 是否要求会话已启用 (默认 true, 缺失即禁用)。
+     *
+     * 【必须】只有能让会话通过门禁的开关指令才声明 false; 豁免声明放在指令定义上,
+     * 不在接收层做名单或字符串特判 (见 ADR 0007)。
+     */
+    requiresSessionEnabled?: boolean;
+    /**
+     * 形态化作用域规则 (进阶): 声明后按 args 数匹配第一条规则
      * 【必须】未命中任何形态时静默返回, 因此新增参数形态时必须同步补充条目。
      */
     scopeRules?: ScopeRule[];
@@ -117,6 +126,21 @@ export const rootInstructionSetMapper: Record<
             { args: 0, scope: 'group', requiredRole: 'admin' },
             { args: 0, scope: 'private', requiredRole: 'superAdmin' },
             { args: 1, scope: 'group', requiredRole: 'superAdmin' },
+        ],
+    },
+    // 会话开关: 唯一豁免会话启用门禁的指令 (否则未启用的群无法自救)
+    enable: {
+        handler: enableHandler,
+        requiresSessionEnabled: false,
+        scopeRules: [
+            { args: 0, scope: 'group', requiredRole: 'superAdmin' },
+        ],
+    },
+    disable: {
+        handler: disableHandler,
+        requiresSessionEnabled: false,
+        scopeRules: [
+            { args: 0, scope: 'group', requiredRole: 'superAdmin' },
         ],
     },
 };

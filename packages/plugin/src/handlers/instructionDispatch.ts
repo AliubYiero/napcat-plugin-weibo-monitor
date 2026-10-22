@@ -7,17 +7,20 @@
  * - 【必须】校验失败反馈不对称是设计而非偶然:
  *     权限不足 → 静默 (防权限探测, 回复会暴露指令面)
  *     作用域不符 → 回复提示 (可用性信息, 不敏感)
+ *     会话未启用 → 只提示超管 (唯一能修复的人), 其余静默
  *     未知指令 → 静默 (同上)
  * - 【必须】handler 内不重复校验
  *
- * `resolveDispatch` 是纯函数 (只读传入的 commands 与 userRole), 因此校验策略
- * 可被单测直接覆盖; `dispatch` 只负责把判定结果落到发送与执行。
+ * `resolveDispatch` 是纯函数 (只读传入的 commands / userRole / sessionEnabled),
+ * 因此校验策略可被单测直接覆盖; `dispatch` 只负责读取会话状态并把判定结果
+ * 落到发送与执行。
  */
 
 import type { OB11Message } from 'napcat-types/napcat-onebot';
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { hasRole, type UserRole } from '../core/admin';
 import { pluginState } from '../core/state';
+import { sessionConfigService } from '../services/sessionConfigService';
 import {
     type InstructionDefinition,
     instructionSetMapper,
@@ -27,10 +30,12 @@ import { sendReply } from './utils';
 
 /** 分发判定结果 */
 export type DispatchDecision =
-    /** 静默: 未知指令 / 权限不足 / scopeRules 未命中 */
+    /** 静默: 未知指令 / 权限不足 / scopeRules 未命中 / 非超管的会话门禁命中 */
     | { type: 'silent' }
     /** 作用域不符: 回复固定提示 */
     | { type: 'scopeHint'; message: string }
+    /** 会话未启用: 只回复超管, 给出开启指令 */
+    | { type: 'sessionHint'; message: string }
     /** 执行: 参数已切好, 门槛已通过 */
     | {
           type: 'run';
@@ -43,15 +48,22 @@ const SCOPE_HINT: Record<'group' | 'private', string> = {
     private: '该指令仅限私聊使用',
 };
 
+const SESSION_HINT = '本群未启用微博推送, 发送 #weibo enable 开启';
+
 /**
  * 解析分发结果 (纯函数)
  *
+ * 校验顺序固定: 注册表命中 → 形态匹配 → 权限 → 作用域 → 会话门禁。
+ * 只要前面的层失败, 就不向后暴露作用域或启用状态。
+ *
  * @param commands 去前缀并切词后的参数数组 (`['reminder', 'add', '...']`)
  * @param userRole 入口处推导的角色 (来源会话即 `userRole.from.type`)
+ * @param sessionEnabled 来源会话是否已启用 (由调用方从单一查询入口读取)
  */
 export function resolveDispatch(
     commands: string[],
     userRole: UserRole,
+    sessionEnabled: boolean,
 ): DispatchDecision {
     const arg1 = (commands[0] ?? '').toLowerCase();
     if (!arg1) return { type: 'silent' };
@@ -82,10 +94,12 @@ export function resolveDispatch(
         const candidates = definition.scopeRules.filter(
             (r) => r.args === rest.length,
         );
+        // 无同来源规则时回退到首个规则: 由后续权限校验决定
+        // 「无权静默」还是「有权但作用域不符 → 提示」。
         const rule =
-            candidates.find(
-                (r) => r.scope === userRole.from.type,
-            ) ?? candidates.find((r) => !r.scope);
+            candidates.find((r) => r.scope === userRole.from.type) ??
+            candidates.find((r) => !r.scope) ??
+            candidates[0];
         if (!rule) return { type: 'silent' };
         requiredRole = rule.requiredRole;
         scope = rule.scope;
@@ -98,6 +112,17 @@ export function resolveDispatch(
     // 作用域不符: 回复提示
     if (scope && scope !== userRole.from.type) {
         return { type: 'scopeHint', message: SCOPE_HINT[scope] };
+    }
+
+    // 会话启用门禁: 默认生效, 开关类指令显式豁免 (ADR 0007)。
+    // 未启用时只提示超管 (唯一能自救的人), 其余静默以不暴露指令面。
+    if (
+        definition.requiresSessionEnabled !== false &&
+        !sessionEnabled
+    ) {
+        return hasRole(userRole, 'superAdmin')
+            ? { type: 'sessionHint', message: SESSION_HINT }
+            : { type: 'silent' };
     }
 
     return { type: 'run', definition, commands: rest };
@@ -115,12 +140,21 @@ export async function dispatch(
     commands: string[],
     userRole: UserRole,
 ): Promise<void> {
-    const decision = resolveDispatch(commands, userRole);
+    const sessionEnabled = sessionConfigService.isSessionEnabled(
+        userRole.from.id,
+        userRole.from.type,
+    );
+    const decision = resolveDispatch(
+        commands,
+        userRole,
+        sessionEnabled,
+    );
 
     switch (decision.type) {
         case 'silent':
             return;
         case 'scopeHint':
+        case 'sessionHint':
             await sendReply(ctx, event, decision.message);
             return;
         case 'run':

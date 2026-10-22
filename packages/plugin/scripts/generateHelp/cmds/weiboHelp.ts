@@ -44,5 +44,21 @@ export const weiboHelp: Cmd = {
                 },
             ],
         },
+        {
+            groupName: '会话开关',
+            isSuperAdmin: true,
+            instructions: [
+                {
+                    cmd: '#weibo enable',
+                    desc: '开启本群微博推送',
+                    onlyGroup: true,
+                },
+                {
+                    cmd: '#weibo disable',
+                    desc: '关闭本群微博推送 (订阅保留)',
+                    onlyGroup: true,
+                },
+            ],
+        },
     ],
 };
