@@ -85,8 +85,6 @@ export function buildTextPresentation(
     }
 
     if (resolvePostEvent(post) === '发布了视频') {
-        const title = pickVideoTitle(post);
-        if (title) pushText(segments, `\n标题: ${title}`);
         const cover = pickVideoCover(post);
         if (cover) pushImage(segments, cover);
     }
@@ -141,22 +139,6 @@ export function buildPlainText(post: WeiboPost): string {
 function buildOriginalHeader(post: WeiboPost): string {
     const name = post.user?.screen_name ?? '原博主';
     return `[${formatWeiboTime(post.created_at)}] 「${name}」`;
-}
-
-function pickVideoTitle(post: WeiboPost): string {
-    const page = post.page_info;
-    if (!page) return '';
-    for (const value of [
-        page.title,
-        page.content1,
-        page.content2,
-        page.page_title,
-    ]) {
-        if (typeof value === 'string' && value.trim()) {
-            return value.trim();
-        }
-    }
-    return '';
 }
 
 function pickVideoCover(post: WeiboPost): string {

@@ -245,7 +245,7 @@ describe('buildTextPresentation', () => {
         expect(imagesOf(segments)).toEqual([]);
     });
 
-    it('视频动态: 正文后追加标题与封面', () => {
+    it('视频动态: 正文后仅追加封面, 不再渲染标题', () => {
         const segments = buildTextPresentation({
             ...POST,
             page_info: {
@@ -260,37 +260,28 @@ describe('buildTextPresentation', () => {
                 '[2026/10/21 15:05:18] 「博主」发布了视频',
                 'https://weibo.com/123/M1',
                 '正文',
-                '标题: 视频标题',
             ].join('\n'),
         );
+        expect(text).not.toContain('标题:');
         expect(imagesOf(segments)).toEqual([
             'https://wx1.sinaimg.cn/cover.jpg',
         ]);
     });
 
-    it('视频标题多字段回退, 全无则省略标题行', () => {
-        expect(
-            textOf(
-                buildTextPresentation({
-                    ...POST,
-                    page_info: {
-                        content2: '备用标题',
-                        media_info: {},
-                    },
-                }),
-            ),
-        ).toContain('标题: 备用标题');
-        expect(
-            textOf(
-                buildTextPresentation({
-                    ...POST,
-                    page_info: {
-                        page_pic: 'https://wx1.sinaimg.cn/cover.jpg',
-                        media_info: {},
-                    },
-                }),
-            ),
-        ).not.toContain('标题:');
+    it('视频标题字段不再产生文本行', () => {
+        const segments = buildTextPresentation({
+            ...POST,
+            page_info: {
+                title: '视频标题',
+                content2: '备用标题',
+                page_pic: 'https://wx1.sinaimg.cn/cover.jpg',
+                media_info: {},
+            },
+        });
+        const text = textOf(segments);
+        expect(text).not.toContain('标题:');
+        expect(text).not.toContain('视频标题');
+        expect(text).not.toContain('备用标题');
     });
 
     it('附图追加在正文之后, 转发时先转发者后原动态', () => {
@@ -436,7 +427,7 @@ describe('buildPlainText', () => {
         expect(text).not.toContain('sinaimg.cn');
     });
 
-    it('视频纯文本保留标题, 去掉封面', () => {
+    it('视频纯文本去掉标题与封面', () => {
         const text = buildPlainText({
             ...POST,
             page_info: {
@@ -445,7 +436,8 @@ describe('buildPlainText', () => {
                 media_info: {},
             },
         });
-        expect(text).toContain('标题: 视频标题');
+        expect(text).not.toContain('标题:');
+        expect(text).not.toContain('视频标题');
         expect(text).not.toContain('cover.jpg');
     });
 });

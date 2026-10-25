@@ -322,16 +322,27 @@ describe('weibo reader', () => {
         expect(hydrated.text).toBe('截断正文');
     });
 
-    it('renderCard 成功返回 buffer', async () => {
-        const reader = createWeiboReader(createDeps());
+    it('renderCard 成功返回 buffer 与渲染前 HTML', async () => {
+        let received = '';
+        const reader = createWeiboReader(
+            createDeps({
+                renderHtml: async (html) => {
+                    received = html;
+                    return Buffer.from('png');
+                },
+            }),
+        );
 
         const result = await reader.renderCard({ text: '正文' });
 
         expect(result.ok).toBe(true);
         expect(result.buffer?.toString()).toBe('png');
+        expect(result.html).toBe(received);
+        expect(result.html).toContain('class="card"');
+        expect(result.html).toContain('正文');
     });
 
-    it('renderCard 失败返回错误并记 warn', async () => {
+    it('renderCard 失败返回错误并保留渲染前 HTML', async () => {
         const warn = vi.fn();
         const reader = createWeiboReader(
             createDeps({
@@ -346,6 +357,7 @@ describe('weibo reader', () => {
 
         expect(result.ok).toBe(false);
         expect(result.buffer).toBeNull();
+        expect(result.html).toContain('class="card"');
         expect(result.message).toBe('截图失败');
         expect(warn).toHaveBeenCalled();
     });

@@ -120,17 +120,29 @@ class BrowserSession implements WeiboBrowserSession {
                     timeout: NAV_TIMEOUT_MS,
                 });
                 await waitForImages(page, IMAGE_WAIT_MS);
-                const height = await page.evaluate(() => {
+                const rect = await page.evaluate(() => {
                     const card = document.querySelector('.card');
                     const element = card ?? document.body;
-                    return Math.ceil(
-                        element.getBoundingClientRect().height,
-                    );
+                    const box = element.getBoundingClientRect();
+                    return {
+                        x: box.x,
+                        y: box.y,
+                        width: box.width,
+                        height: box.height,
+                    };
                 });
-                if (height > 0) {
+                if (rect.width > 0 && rect.height > 0) {
                     await page.setViewportSize({
                         width: CARD_WIDTH,
-                        height,
+                        height: Math.max(
+                            1,
+                            Math.ceil(rect.y + rect.height),
+                        ),
+                    });
+                    return await page.screenshot({
+                        clip: rect,
+                        type: 'png',
+                        animations: 'disabled',
                     });
                 }
                 return await page.screenshot({

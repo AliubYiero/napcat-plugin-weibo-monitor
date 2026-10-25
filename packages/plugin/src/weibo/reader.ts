@@ -56,6 +56,7 @@ export interface LongTextResult {
 export interface CardRenderResult {
     ok: boolean;
     buffer: Buffer | null;
+    html: string | null;
     message: string;
 }
 
@@ -252,18 +253,18 @@ class WeiboReaderImpl implements WeiboReader {
     }
 
     async renderCard(post: WeiboPost): Promise<CardRenderResult> {
+        let html: string | null = null;
         try {
-            const buffer = await this.deps.renderHtml(
-                buildPostCardHtml(post),
-            );
-            return { ok: true, buffer, message: '' };
+            html = buildPostCardHtml(post);
+            const buffer = await this.deps.renderHtml(html);
+            return { ok: true, buffer, html, message: '' };
         } catch (error) {
             const message =
                 error instanceof Error
                     ? error.message
                     : String(error);
             this.deps.logger?.warn('微博卡片渲染失败:', error);
-            return { ok: false, buffer: null, message };
+            return { ok: false, buffer: null, html, message };
         }
     }
 

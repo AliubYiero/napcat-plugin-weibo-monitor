@@ -3,6 +3,7 @@ import {
     buildPostCardHtml,
     buildPostUrl,
     CARD_WIDTH,
+    formatVideoDuration,
     pickAllPostImages,
     pickAvatar,
     pickPostImages,
@@ -193,12 +194,39 @@ describe('buildPostCardHtml', () => {
         expect(html).not.toContain('转发');
     });
 
-    it('外框为灰色直角边框, 且不再输出底部 footer', () => {
+    it('卡片外壳使用新内边距与浅边框, 且不再输出底部 footer', () => {
         const html = buildPostCardHtml(POST);
-        expect(html).toContain('border: 1px solid #d9d9d9');
+        expect(html).toContain('padding: 16px 18px');
+        expect(html).toContain(
+            'border: 1px solid rgba(0, 0, 0, .05)',
+        );
         expect(html).not.toContain('查看原文');
         expect(html).not.toContain('https://weibo.com/123/M1');
         expect(html).not.toContain('class="footer"');
+    });
+
+    it('顶部信息区顶部对齐, 正文与媒体统一缩进 62px', () => {
+        const html = buildPostCardHtml(POST);
+        expect(html).toContain('align-items: flex-start');
+        expect(html).toContain('margin-right: 10px');
+        expect(html).toContain('gap: 6px');
+        expect(html).toContain('font-size: 15px; font-weight: 700');
+        expect(html).toContain('font-size: 13px');
+        expect(html).toContain('.body { margin-left: 62px; }');
+    });
+
+    it('转发块灰底铺满卡片, 文字左缘与正文对齐', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            retweeted_status: {
+                text: '被转发正文',
+                user: { screen_name: '原博主' },
+            },
+        });
+        expect(html).toContain(
+            'margin: 6px -18px; padding: 6px 36px 6px 80px;',
+        );
+        expect(html).toContain('background: #f9f9f9');
     });
 
     it('卡片时间格式化为北京时间', () => {
@@ -226,7 +254,7 @@ describe('buildPostCardHtml', () => {
         expect(html).toContain('images n2');
         expect(html).toContain('@原博主');
         expect(html).toContain('被转发正文');
-        expect(html).toContain('background: #f7f7f7');
+        expect(html).toContain('background: #f9f9f9');
         expect(html).not.toContain('border-left: 3px');
     });
 
@@ -297,7 +325,7 @@ describe('buildPostCardHtml', () => {
         expect(html).not.toContain('class="link-card"');
     });
 
-    it('视频标题回退到 page_title', () => {
+    it('视频块不渲染标题, 输出遮罩与播放信息', () => {
         const html = buildPostCardHtml({
             ...POST,
             text: '',
@@ -308,9 +336,122 @@ describe('buildPostCardHtml', () => {
                 page_url:
                     'sinaweibo://infopage?containerid=2304445354971583938563',
                 page_pic: 'https://wx2.sinaimg.cn/video.jpg',
+                play_count: '3万次播放',
+                media_info: { duration: 126.386 },
             },
         });
-        expect(html).toContain('_Leslieeeee_的微博视频');
+        expect(html).toContain('class="video"');
+        expect(html).toContain('class="video-shade"');
+        expect(html).toContain('class="video-play"');
+        expect(html).toContain('stroke-linejoin: round');
+        expect(html).toContain('class="video-count">3万次播放');
+        expect(html).toContain('class="video-duration">02:06');
+        expect(html).toContain('max-height: 305px');
+        expect(html).toContain('object-fit: contain');
+        expect(html).not.toContain('class="video-title"');
+        expect(html).not.toContain('_Leslieeeee_的微博视频');
+    });
+
+    it('桌面接口从 media_info.online_users 读取播放量', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                type: '11',
+                object_type: 'video',
+                page_pic: 'https://wx2.sinaimg.cn/video.jpg',
+                media_info: {
+                    duration: 16,
+                    online_users: '502次观看',
+                    online_users_number: 502,
+                },
+            },
+        });
+        expect(html).toContain('class="video-count">502次观看');
+        expect(html).toContain('class="video-duration">00:16');
+    });
+
+    it('仅有 online_users_number 时补上观看单位', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                type: '11',
+                object_type: 'video',
+                page_pic: 'https://wx2.sinaimg.cn/video.jpg',
+                media_info: { online_users_number: 8307 },
+            },
+        });
+        expect(html).toContain('class="video-count">8307次观看');
+    });
+
+    it('无封面时整个视频块不渲染', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                type: 5,
+                object_type: 'video',
+                page_url: 'https://weibo.com/video/1',
+                play_count: '1万次播放',
+                media_info: { duration: 10 },
+            },
+        });
+        expect(html).not.toContain('class="video"');
+        expect(html).not.toContain('1万次播放');
+    });
+
+    it('播放量与时长缺失时按项省略', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                type: 5,
+                object_type: 'video',
+                page_pic: 'https://wx2.sinaimg.cn/video.jpg',
+                media_info: {},
+            },
+        });
+        expect(html).toContain('class="video"');
+        expect(html).not.toContain('class="video-count"');
+        expect(html).not.toContain('class="video-duration"');
+    });
+
+    it('转发块在媒体之后追加原动态时间', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '转发理由',
+            retweeted_status: {
+                created_at: 'Thu Dec 07 01:35:24 +0800 2023',
+                text: '原动态正文',
+                user: { screen_name: '原博主' },
+                pic_ids: ['r'],
+                pic_infos: {
+                    r: {
+                        large: {
+                            url: 'https://wx1.sinaimg.cn/r.jpg',
+                        },
+                    },
+                },
+            },
+        });
+        expect(html).toContain('class="rt-time"');
+        expect(html).toContain('2023/12/07 01:35:24');
+        expect(html.indexOf('class="rt-time"')).toBeGreaterThan(
+            html.indexOf('https://wx1.sinaimg.cn/r.jpg'),
+        );
+    });
+
+    it('原动态缺少时间时不渲染时间行', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '转发理由',
+            retweeted_status: {
+                text: '原动态正文',
+                user: { screen_name: '原博主' },
+            },
+        });
+        expect(html).not.toContain('class="rt-time"');
     });
 
     it('重复的 page_info 只渲染在转发块内', () => {
@@ -390,5 +531,23 @@ describe('buildPostCardHtml', () => {
             html.indexOf('class="retweet"'),
         );
         expect(html).toContain('哔哩哔哩');
+    });
+});
+
+describe('formatVideoDuration', () => {
+    it('向下取整为 m:ss, 满 1 小时为 h:mm:ss', () => {
+        expect(formatVideoDuration(126.386)).toBe('02:06');
+        expect(formatVideoDuration(59.9)).toBe('00:59');
+        expect(formatVideoDuration(0)).toBe('00:00');
+        expect(formatVideoDuration('3725')).toBe('1:02:05');
+        expect(formatVideoDuration(3725)).toBe('1:02:05');
+    });
+
+    it('非法值返回空串', () => {
+        expect(formatVideoDuration(undefined)).toBe('');
+        expect(formatVideoDuration(null)).toBe('');
+        expect(formatVideoDuration('')).toBe('');
+        expect(formatVideoDuration('abc')).toBe('');
+        expect(formatVideoDuration(-1)).toBe('');
     });
 });

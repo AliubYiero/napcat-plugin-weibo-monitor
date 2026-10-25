@@ -169,24 +169,33 @@ export function buildPostCardHtml(post: WeiboPost): string {
         color: #1f2329;
         -webkit-font-smoothing: antialiased;
     }
-    .card { padding: 24px; border: 1px solid #d9d9d9; }
-    .header { display: flex; align-items: center; gap: 12px; }
+    .card {
+        padding: 16px 18px; border: 1px solid rgba(0, 0, 0, .05);
+    }
+    .header { display: flex; align-items: flex-start; }
     .avatar {
         width: 52px; height: 52px; border-radius: 50%;
         object-fit: cover; flex: 0 0 auto; background: #f0f0f0;
+        border: 1px solid rgba(0, 0, 0, .05); margin-right: 10px;
     }
-    .who { min-width: 0; flex: 1; }
+    .who {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+        height: 52px;
+    }
     .name {
-        font-size: 17px; font-weight: 700; line-height: 1.3;
+        font-size: 15px; font-weight: 700; line-height: 1.3;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .meta {
-        margin-top: 4px; font-size: 13px; color: #8a8f99;
-        line-height: 1.4;
-    }
+    .meta { font-size: 13px; color: #8a8f99; line-height: 1.4; }
     .dot { padding: 0 4px; color: #c4c7cc; }
+    .body { margin-left: 62px; }
     .content {
-        margin-top: 16px; font-size: 16px; line-height: 1.75;
+        margin-top: 3px; font-size: 15px; line-height: 1.75;
         word-break: break-word; white-space: normal;
     }
     .content a { color: #eb7350; text-decoration: none; }
@@ -213,7 +222,8 @@ export function buildPostCardHtml(post: WeiboPost): string {
         background: rgba(0, 0, 0, 0.55);
     }
     .retweet {
-        margin-top: 14px; padding: 14px 16px; background: #f7f7f7;
+        margin: 6px -18px; padding: 6px 36px 6px 80px;
+        background: #f9f9f9;
     }
     .retweet .rt-user {
         font-size: 14px; font-weight: 600; color: #3b6ea5;
@@ -228,15 +238,42 @@ export function buildPostCardHtml(post: WeiboPost): string {
     }
     .retweet .images { margin-top: 10px; }
     .retweet .deleted { color: #8a8f99; font-size: 14px; }
+    .retweet .rt-time {
+        margin-top: 8px; font-size: 13px; line-height: 1.4;
+        color: #939393;
+    }
     .video {
-        margin-top: 14px; border-radius: 6px; overflow: hidden;
-        background: #f7f8fa;
+        position: relative; margin-top: 14px; border-radius: 6px;
+        overflow: hidden; background: #000; max-height: 305px;
     }
-    .video img { width: 100%; display: block; }
-    .video .video-title {
-        padding: 10px 12px; font-size: 14px; line-height: 1.5;
-        color: #3f444d;
+    .video img {
+        width: 100%; max-height: 305px; display: block;
+        object-fit: contain;
     }
+    .video-shade {
+        position: absolute; inset: 0; pointer-events: none;
+        background: linear-gradient(
+            180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .4)
+        );
+    }
+    .video-play {
+        position: absolute; top: 50%; left: 50%;
+        width: 56px; height: 64px;
+        transform: translate(-50%, -50%);
+        fill: #ffffff; stroke: #ffffff; stroke-width: 12;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 0 12px rgba(0, 0, 0, .45));
+    }
+    .video-count, .video-duration {
+        position: absolute; bottom: 10px; font-size: 13px;
+        font-weight: 500; line-height: 1.2; color: #ffffff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+    }
+    .video-count {
+        left: 20px; max-width: 42%; overflow: hidden;
+        white-space: nowrap; text-overflow: ellipsis;
+    }
+    .video-duration { right: 20px; }
     .link-card {
         margin-top: 14px; display: flex; gap: 12px; padding: 8px;
         background: #f7f8fa; border-radius: 6px;
@@ -271,9 +308,11 @@ export function buildPostCardHtml(post: WeiboPost): string {
             ${meta ? `<div class="meta">${meta}</div>` : ''}
         </div>
     </div>
-    ${content ? `<div class="content">${content}</div>` : ''}
-    ${renderImages(images, '')}
-    ${renderPageMedia(mainPage)}
+    <div class="body">
+        ${content ? `<div class="content">${content}</div>` : ''}
+        ${renderImages(images, '')}
+        ${renderPageMedia(mainPage)}
+    </div>
     ${renderRetweet(post)}
 </div>
 </body>
@@ -305,12 +344,71 @@ function renderVideo(page: WeiboPageInfo): string {
     if (!isNativeVideo(page)) return '';
 
     const cover = pageCover(page);
-    const title = pageTitle(page) || '视频';
+    if (!cover) return '';
+
+    const playCount = pickPlayCount(page);
+    const duration = formatVideoDuration(page.media_info?.duration);
 
     return `<div class="video">
-        ${cover ? `<img src="${escapeHtml(cover)}" alt="" />` : ''}
-        <div class="video-title">${escapeHtml(title)}</div>
+        <img src="${escapeHtml(cover)}" alt="" loading="eager" />
+        <div class="video-shade"></div>
+        <svg class="video-play" viewBox="0 0 56 64" aria-hidden="true"><path d="M 14 10 L 46 32 L 14 54 Z" /></svg>
+        ${playCount ? `<span class="video-count">${escapeHtml(playCount)}</span>` : ''}
+        ${duration ? `<span class="video-duration">${duration}</span>` : ''}
     </div>`;
+}
+
+function pickPlayCount(page: WeiboPageInfo): string {
+    const media = page.media_info;
+    const onlineUsers = media?.online_users;
+    if (typeof onlineUsers === 'string' && onlineUsers.trim()) {
+        return onlineUsers.trim();
+    }
+    if (
+        typeof onlineUsers === 'number' &&
+        Number.isFinite(onlineUsers) &&
+        onlineUsers > 0
+    ) {
+        return `${onlineUsers}次观看`;
+    }
+
+    const raw = page.play_count;
+    if (typeof raw === 'number') {
+        return Number.isFinite(raw) ? String(raw) : '';
+    }
+    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+
+    const onlineUsersNumber = media?.online_users_number;
+    const numeric =
+        typeof onlineUsersNumber === 'number'
+            ? onlineUsersNumber
+            : typeof onlineUsersNumber === 'string' && onlineUsersNumber.trim()
+              ? Number(onlineUsersNumber)
+              : Number.NaN;
+    return Number.isFinite(numeric) && numeric > 0
+        ? `${numeric}次观看`
+        : '';
+}
+
+/** 秒数 → `m:ss`, 满 1 小时为 `h:mm:ss`; 非法值返回空串 */
+export function formatVideoDuration(
+    raw: number | string | null | undefined,
+): string {
+    if (raw === null || raw === undefined || raw === '') return '';
+    const value = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(value) || value < 0) return '';
+    const total = Math.floor(value);
+    const seconds = total % 60;
+    const minutes = Math.floor(total / 60) % 60;
+    const hours = Math.floor(total / 3600);
+    if (hours > 0) {
+        return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+    }
+    return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+function pad(value: number): string {
+    return String(value).padStart(2, '0');
 }
 
 function renderLinkCard(page: WeiboPageInfo): string {
@@ -468,6 +566,9 @@ function renderRetweet(post: WeiboPost): string {
     }
 
     const rtName = retweet.user?.screen_name ?? '原博主';
+    const rtTime = retweet.created_at
+        ? formatWeiboTime(retweet.created_at)
+        : '';
     const rtContent = sanitizeWeiboHtml(
         retweet.text ?? retweet.text_raw ?? '',
     );
@@ -478,5 +579,6 @@ function renderRetweet(post: WeiboPost): string {
         ${rtContent ? `<div class="rt-content">${rtContent}</div>` : ''}
         ${renderImages(rtImages, ' rt-images')}
         ${renderPageMedia(retweet.page_info)}
+        ${rtTime ? `<div class="rt-time">${escapeHtml(rtTime)}</div>` : ''}
     </div>`;
 }

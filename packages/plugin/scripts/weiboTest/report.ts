@@ -36,6 +36,8 @@ export interface PostReport {
     textFile: string;
     cardFile: string | null;
     cardError: string | null;
+    cardHtmlFile: string | null;
+    cardHtml: string | null;
     attachments: AttachmentReport[];
     errors: string[];
     text: string;
@@ -61,7 +63,7 @@ export interface RunManifest {
         longTextHydrated: number;
         longTextFailed: number;
     };
-    posts: Omit<PostReport, 'text'>[];
+    posts: Omit<PostReport, 'text' | 'cardHtml'>[];
 }
 
 export function postFileBase(index: number, post: WeiboPost): string {
@@ -178,6 +180,12 @@ export function buildIndexHtml(
         line-height: 1.7; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     }
     pre.error { color: #d4380d; }
+    .html-output { margin-top: 14px; }
+    .html-head { display: flex; align-items: baseline; gap: 10px; }
+    .html-head h3 { margin: 0; }
+    .html-head a { font-size: 13px; color: #FB7299; text-decoration: none; }
+    .html-head a:hover { text-decoration: underline; }
+    .html-source { margin-top: 8px; max-height: 420px; overflow: auto; }
     details { margin-top: 14px; }
     summary { cursor: pointer; font-size: 13px; color: #646a73; }
     .attachments { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
@@ -213,6 +221,18 @@ function renderPost(post: PostReport): string {
     const errors = post.errors.length
         ? `<ul class="errors">${post.errors.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
         : '';
+    const htmlOutput = post.cardHtml
+        ? `<section class="html-output">
+            <div class="html-head">
+                <h3>HTML 输出</h3>
+                ${post.cardHtmlFile ? `<a href="${escapeHtml(post.cardHtmlFile)}" target="_blank" rel="noopener noreferrer">新窗口打开</a>` : ''}
+            </div>
+            <details>
+                <summary>查看渲染前 HTML 源码</summary>
+                <pre class="html-source">${escapeHtml(post.cardHtml)}</pre>
+            </details>
+        </section>`
+        : '';
 
     return `<article class="post ${post.qualified ? 'qualified' : 'filtered'}">
     <h2>#${String(post.index).padStart(3, '0')} 「${escapeHtml(post.screenName)}」${escapeHtml(post.event)}</h2>
@@ -232,6 +252,7 @@ function renderPost(post: PostReport): string {
             <pre>${escapeHtml(post.text)}</pre>
         </section>
     </div>
+    ${htmlOutput}
     ${attachments}
     ${errors}
 </article>`;

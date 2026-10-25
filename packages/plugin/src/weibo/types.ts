@@ -94,10 +94,18 @@ export interface WeiboPageInfo {
     page_title?: string;
     page_url?: string;
     page_pic?: string | { url?: string };
+    /** 播放量成品文案, 如「3万次播放」 */
+    play_count?: string | number;
     media_info?: {
         stream_url?: string;
         stream_url_hd?: string;
         mp4_720p_mp4?: string;
+        /** 视频时长 (秒, 可能为浮点) */
+        duration?: number | string;
+        /** 桌面接口的播放量成品文案, 如「502次观看」 */
+        online_users?: string | number;
+        /** 桌面接口的播放量数值 */
+        online_users_number?: number | string;
         [key: string]: unknown;
     };
     [key: string]: unknown;

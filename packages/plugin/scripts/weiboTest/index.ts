@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,6 +112,7 @@ async function main(): Promise<void> {
             const card = await reader.renderCard(post);
             let cardFile: string | null = null;
             let cardError: string | null = null;
+            let cardHtmlFile: string | null = null;
             if (card.ok && card.buffer) {
                 cardFile = `${base}.png`;
                 writeBinaryFile(outputDir, cardFile, card.buffer);
@@ -121,6 +123,10 @@ async function main(): Promise<void> {
                     `${base}.card.error.txt`,
                     `${cardError}\n`,
                 );
+            }
+            if (card.html) {
+                cardHtmlFile = `${base}.card.html`;
+                writeTextFile(outputDir, cardHtmlFile, card.html);
             }
 
             const text = materializeText(buildTextPresentation(post));
@@ -146,6 +152,8 @@ async function main(): Promise<void> {
                 textFile: `${base}.txt`,
                 cardFile,
                 cardError,
+                cardHtmlFile,
+                cardHtml: card.html,
                 attachments,
                 errors,
                 text,
@@ -191,6 +199,8 @@ async function main(): Promise<void> {
     } finally {
         await session.close();
     }
+
+    openInBrowser(path.join(outputDir, 'index.html'));
 }
 
 async function hydrateAndResolveStatus(
@@ -388,7 +398,9 @@ function buildManifest(
                     post.longTextStatus === 'missing-id',
             ).length,
         },
-        posts: reports.map(({ text: _text, ...rest }) => rest),
+        posts: reports.map(
+            ({ text: _text, cardHtml: _cardHtml, ...rest }) => rest,
+        ),
     };
 }
 
@@ -398,6 +410,36 @@ function timestamp(date = new Date()): string {
         `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
         `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
     );
+}
+
+function openInBrowser(filePath: string): void {
+    const command =
+        process.platform === 'win32'
+            ? { bin: 'cmd.exe', args: ['/c', 'start', '', filePath] }
+            : {
+                  bin:
+                      process.platform === 'darwin'
+                          ? 'open'
+                          : 'xdg-open',
+                  args: [filePath],
+              };
+    try {
+        const child = spawn(command.bin, command.args, {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+        });
+        child.on('error', (error) => {
+            console.warn(`自动打开 index.html 失败: ${error.message}`);
+        });
+        child.unref();
+    } catch (error) {
+        console.warn(
+            `自动打开 index.html 失败: ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        );
+    }
 }
 
 main().catch((error: unknown) => {
