@@ -3,7 +3,7 @@
  *
  * 关闭当前群聊的微博监听推送。仅 superAdmin 可用, 作用域仅群聊;
  * 它豁免会话启用门禁 (`requiresSessionEnabled: false`), 否则已停用后无法再执行。
- * 关闭只停止推送与拉取, 不删除订阅; 重新开启后按游标重建处理, 不补发期间动态。
+ * 关闭只停止推送与拉取, 不删除订阅; 重新开启后按基线重建处理, 不补发期间动态。
  */
 
 import { sessionConfigService } from '../../services/sessionConfigService';

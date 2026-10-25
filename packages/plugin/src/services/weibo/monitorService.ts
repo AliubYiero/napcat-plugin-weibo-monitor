@@ -14,10 +14,8 @@ import type {
     WeiboSubscriptionTargetResult,
     WeiboWriteCode,
 } from '../../types';
-import {
-    filterQualifiedPosts,
-    getPostId,
-} from '../../weibo/predicate';
+import { selectLatestOwnerPost } from '../../weibo/predicate';
+import { buildSeenBaseline } from '../../weibo/seenCache';
 import type {
     WeiboMonitor,
     WeiboMonitorTarget,
@@ -67,7 +65,7 @@ class WeiboMonitorService {
         return WeiboMonitorStore.getInstance();
     }
 
-    /** 订阅一个博主并为其播种水位线 (不补发历史) */
+    /** 订阅一个博主并为其播种已见缓存 (不补发历史) */
     async add(
         rawUid: string,
         target: WeiboMonitorTarget,
@@ -265,7 +263,11 @@ class WeiboMonitorService {
             );
         }
 
-        return filterQualifiedPosts(timeline.posts, uid)[0] ?? null;
+        return selectLatestOwnerPost(
+            timeline.posts,
+            uid,
+            pluginState.config.weiboPushContentTypes,
+        );
     }
 
     /** 把最新动态按卡片推送到当前会话 */
@@ -341,7 +343,7 @@ class WeiboMonitorService {
         return null;
     }
 
-    /** 拉取博主资料与首页动态, 并播种水位线 */
+    /** 拉取博主资料与首页动态, 并播种已见缓存 */
     private async prepare(uid: string): Promise<PrepareResult> {
         const profile = await weiboApiService.fetchProfile(uid);
         if (!profile.ok || !profile.user) {
@@ -401,20 +403,17 @@ class WeiboMonitorService {
         return { ok: true, screenName, avatar, seeded };
     }
 
-    /** 用首页动态播种水位线; 已有游标时不覆盖 */
+    /**
+     * 用首页全部条目播种已见缓存; 已完成初始化的游标不再覆盖。
+     *
+     * 播种不做内容过滤: 点赞、广告、置顶、他人推广条目也要进入缓存,
+     * 否则后续轮询会把它们当成新动态。空列表同样标记初始化。
+     */
     private seedCursor(uid: string, posts: WeiboPost[]): boolean {
         const cursorStore = WeiboCursorStore.getInstance();
-        if (cursorStore.get(uid)) return false;
+        if (cursorStore.get(uid)?.initialized) return false;
 
-        const qualified = filterQualifiedPosts(posts, uid);
-        const watermark = qualified[0] ? getPostId(qualified[0]) : '';
-        if (!watermark) return false;
-
-        cursorStore.set(
-            uid,
-            watermark,
-            qualified.slice(0, 20).map(getPostId),
-        );
+        cursorStore.set(uid, buildSeenBaseline(posts));
         return true;
     }
 }

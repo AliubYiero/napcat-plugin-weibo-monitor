@@ -54,7 +54,7 @@ describe('explainQualified', () => {
         ).toEqual({ qualified: true, reasons: [] });
     });
 
-    it('列出全部被筛原因', () => {
+    it('列出硬条件与内容开关的筛除原因', () => {
         const result = explainQualified(
             {
                 mblogtype: 1,
@@ -63,16 +63,45 @@ describe('explainQualified', () => {
                 user: { idstr: '999' },
             },
             '123',
+            [],
         );
 
         expect(result.qualified).toBe(false);
         expect(result.reasons).toEqual([
             '作者 UID: 999',
             'mblogtype=1',
-            '置顶',
-            '广告',
             '缺少动态 id',
+            '广告',
         ]);
+    });
+
+    it('点赞条目不按原微博作者筛除', () => {
+        expect(
+            explainQualified(
+                {
+                    idstr: 'L1',
+                    mblogtype: 0,
+                    isTop: 1,
+                    user: { idstr: '999' },
+                    title: { text: '10-24赞过的微博' },
+                },
+                '123',
+            ),
+        ).toEqual({ qualified: true, reasons: [] });
+    });
+
+    it('按内容开关列出被关闭的类型', () => {
+        const result = explainQualified(
+            {
+                idstr: 'R1',
+                mblogtype: 0,
+                user: { idstr: '123' },
+                retweeted_status: { text: '原' },
+            },
+            '123',
+            [],
+        );
+        expect(result.reasons).toEqual(['转发动态']);
     });
 });
 

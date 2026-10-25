@@ -6,16 +6,28 @@
  */
 
 import {
+    birthdayCover,
+    birthdayHref,
+    birthdayTitle,
+} from './birthday';
+import {
+    parseLikeDay,
+    resolvePostKind,
+    resolveRootRetweet,
+} from './postKind';
+import {
     escapeHtml,
     htmlToText,
     sanitizeWeiboHtml,
 } from './sanitize';
-import { formatWeiboTime } from './time';
+import { formatLikeTime, formatWeiboTime } from './time';
 import type {
     WeiboMixMediaItem,
     WeiboPageInfo,
     WeiboPicInfo,
     WeiboPost,
+    WeiboPostIdentity,
+    WeiboPostRenderContext,
     WeiboUser,
 } from './types';
 
@@ -128,32 +140,79 @@ export function buildPostUrl(post: WeiboPost): string {
     return `https://weibo.com/${String(uid)}/${String(mid)}`;
 }
 
+export interface CardRenderOptions {
+    context?: WeiboPostRenderContext;
+    identity?: WeiboPostIdentity;
+}
+
 /**
  * 构建一张动态卡片。
  *
  * @param post 已通过筛选谓词的动态
+ * @param options 分类上下文与外层身份 (点赞事件用订阅博主)
  */
-export function buildPostCardHtml(post: WeiboPost): string {
+export function buildPostCardHtml(
+    post: WeiboPost,
+    options: CardRenderOptions = {},
+): string {
+    const kind = options.context?.kind ?? resolvePostKind(post);
+    const identity = kind === 'like' ? options.identity : undefined;
     const user = post.user;
-    const screenName = user?.screen_name ?? '微博用户';
-    const avatar = pickAvatar(user);
-    const createdAt = formatWeiboTime(post.created_at);
-    const source = htmlToText(post.source ?? '');
-    const region = post.region_name ?? '';
-    const content = sanitizeWeiboHtml(
-        post.text ?? post.text_raw ?? '',
-    );
-    const images = pickAllPostImages(post);
-    const retweet = post.retweeted_status;
+    const screenName =
+        identity?.screenName ?? user?.screen_name ?? '微博用户';
+    const avatar = identity?.avatar ?? pickAvatar(user);
+    const likeDay =
+        options.context?.likeDay ?? parseLikeDay(post);
+    const rawCreatedAt =
+        kind === 'like'
+            ? formatLikeTime(likeDay, options.context?.fetchedAt)
+            : formatWeiboTime(post.created_at);
+    const createdAt =
+        kind === 'birthday' && rawCreatedAt === '未知时间' ? '' : rawCreatedAt;
+    const source =
+        kind === 'like' ? '' : htmlToText(post.source ?? '');
+    const region =
+        kind === 'like' || kind === 'birthday'
+            ? ''
+            : (post.region_name ?? '');
+    const content =
+        kind === 'like' || kind === 'birthday'
+            ? ''
+            : sanitizeWeiboHtml(post.text ?? post.text_raw ?? '');
+    const likeReason =
+        kind === 'like' ? buildLikeReason(post) : '';
+    const images =
+        kind === 'like' || kind === 'birthday'
+            ? []
+            : pickAllPostImages(post);
     const mainPage =
-        retweet && isSamePageInfo(post.page_info, retweet.page_info)
+        kind === 'like' || kind === 'birthday'
             ? undefined
-            : post.page_info;
+            : post.retweeted_status &&
+                isSamePageInfo(
+                    post.page_info,
+                    post.retweeted_status.page_info,
+                )
+              ? undefined
+              : post.page_info;
 
-    const meta = [createdAt, source, region]
+    const meta = [
+        createdAt,
+        kind === 'like' ? '点赞了微博' : '',
+        source,
+        region,
+    ]
         .filter((item) => item.length > 0)
         .map(escapeHtml)
         .join(' <span class="dot">·</span> ');
+
+    const originalBlock =
+        kind === 'birthday'
+            ? ''
+            : kind === 'like'
+              ? renderLikeOriginal(post)
+              : renderRetweet(post);
+    const cardClass = originalBlock ? 'card has-retweet' : 'card';
 
     return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -172,6 +231,7 @@ export function buildPostCardHtml(post: WeiboPost): string {
     .card {
         padding: 16px 18px; border: 1px solid rgba(0, 0, 0, .05);
     }
+    .card.has-retweet { padding-bottom: 0; }
     .header { display: flex; align-items: flex-start; }
     .avatar {
         width: 52px; height: 52px; border-radius: 50%;
@@ -199,8 +259,15 @@ export function buildPostCardHtml(post: WeiboPost): string {
         word-break: break-word; white-space: normal;
     }
     .content a { color: #eb7350; text-decoration: none; }
-    .content img.emoji {
-        width: 20px; height: 20px; vertical-align: -3px; margin: 0 1px;
+    img.emoji:has(+a) {
+        filter: sepia(100%) saturate(3800%) contrast(75%);
+        margin: 0 2px;
+        width: 14px;
+        height: 14px;
+        vertical-align: -1px;
+    }
+    img.emoji {
+        width: 18px; height: 18px; vertical-align: -3px; margin: 0 1px;
     }
     .images { margin-top: 14px; display: grid; gap: 2px; }
     .images.n1 { grid-template-columns: minmax(0, 1fr); }
@@ -225,6 +292,9 @@ export function buildPostCardHtml(post: WeiboPost): string {
         margin: 6px -18px; padding: 6px 36px 6px 80px;
         background: #f9f9f9;
     }
+    .card.has-retweet .retweet {
+        margin-bottom: 0; padding-bottom: 16px;
+    }
     .retweet .rt-user {
         font-size: 14px; font-weight: 600; color: #3b6ea5;
         margin-bottom: 6px;
@@ -233,14 +303,31 @@ export function buildPostCardHtml(post: WeiboPost): string {
         font-size: 15px; line-height: 1.7; word-break: break-word;
     }
     .retweet .rt-content a { color: #eb7350; text-decoration: none; }
-    .retweet .rt-content img.emoji {
-        width: 18px; height: 18px; vertical-align: -3px;
-    }
     .retweet .images { margin-top: 10px; }
     .retweet .deleted { color: #8a8f99; font-size: 14px; }
     .retweet .rt-time {
         margin-top: 8px; font-size: 13px; line-height: 1.4;
         color: #939393;
+    }
+    .birthday-card {
+        margin-top: 12px; padding: 10px; display: flex; gap: 12px;
+        background: #f7f8fa; border-radius: 6px;
+    }
+    .birthday-cover {
+        width: 160px; height: 90px; flex: 0 0 auto; display: block;
+        border-radius: 6px; object-fit: cover; background: #eceff3;
+    }
+    .birthday-body {
+        min-width: 0; flex: 1; display: flex; flex-direction: column;
+        justify-content: center; gap: 8px;
+    }
+    .birthday-title {
+        font-size: 15px; line-height: 1.5; font-weight: 600;
+        word-break: break-word;
+    }
+    .birthday-link a {
+        font-size: 13px; line-height: 1.4; color: #eb7350;
+        text-decoration: none;
     }
     .video {
         position: relative; margin-top: 14px; border-radius: 6px;
@@ -300,7 +387,7 @@ export function buildPostCardHtml(post: WeiboPost): string {
 </style>
 </head>
 <body>
-<div class="card">
+<div class="${cardClass}">
     <div class="header">
         ${avatar ? `<img class="avatar" src="${escapeHtml(avatar)}" alt="" />` : ''}
         <div class="who">
@@ -309,11 +396,19 @@ export function buildPostCardHtml(post: WeiboPost): string {
         </div>
     </div>
     <div class="body">
-        ${content ? `<div class="content">${content}</div>` : ''}
+        ${
+            kind === 'birthday'
+                ? renderBirthdayBlock(post)
+                : content
+                  ? `<div class="content">${content}</div>`
+                  : likeReason
+                    ? `<div class="content">${likeReason}</div>`
+                    : ''
+        }
         ${renderImages(images, '')}
         ${renderPageMedia(mainPage)}
     </div>
-    ${renderRetweet(post)}
+    ${originalBlock}
 </div>
 </body>
 </html>`;
@@ -556,29 +651,87 @@ function isSamePageInfo(
     );
 }
 
-function renderRetweet(post: WeiboPost): string {
-    const retweet = post.retweeted_status;
-    const retweetId = post.retweeted_status_id;
-    if (!retweet && !retweetId) return '';
+function renderLikeOriginal(post: WeiboPost): string {
+    if (post.retweeted_status || post.retweeted_status_id) {
+        return renderOriginalBlock(
+            resolveRootRetweet(post),
+            post.retweeted_status_id,
+        );
+    }
+    return renderOriginalBlock(post);
+}
 
-    if (!retweet) {
+/**
+ * 点赞的原动态本身是转发时, 主文区展示被点赞博主的转发理由。
+ *
+ * 转发块落到最原始博文后, 这块理由是原动态里唯一无法在块内表达的内容。
+ */
+function buildLikeReason(post: WeiboPost): string {
+    if (!(post.retweeted_status || post.retweeted_status_id)) {
+        return '';
+    }
+    const content = sanitizeWeiboHtml(
+        post.text ?? post.text_raw ?? '',
+    );
+    if (!content.trim()) return '';
+    const name = post.user?.screen_name ?? '原博主';
+    return `//${buildMentionAnchor(name)}:${content}`;
+}
+
+function buildMentionAnchor(name: string): string {
+    const href = `https://weibo.com/n/${encodeURIComponent(name)}`;
+    return [
+        `<a href="${escapeHtml(href)}"`,
+        ' target="_blank" rel="noopener noreferrer">',
+        `@${escapeHtml(name)}</a>`,
+    ].join('');
+}
+
+function renderBirthdayBlock(post: WeiboPost): string {
+    const cover = birthdayCover(post);
+    const title = birthdayTitle(post);
+    const href = birthdayHref(post);
+
+    return `<div class="birthday-card">
+        ${cover ? `<img class="birthday-cover" src="${escapeHtml(cover)}" alt="" loading="eager" />` : ''}
+        <div class="birthday-body">
+            <div class="birthday-title">${escapeHtml(title)}</div>
+            ${href ? `<div class="birthday-link"><a href="${escapeHtml(href)}">查看生日动态</a></div>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderRetweet(post: WeiboPost): string {
+    return renderOriginalBlock(
+        post.retweeted_status,
+        post.retweeted_status_id,
+    );
+}
+
+function renderOriginalBlock(
+    original: WeiboPost | null | undefined,
+    originalId?: string,
+): string {
+    if (!original && !originalId) return '';
+
+    if (!original) {
         return `<div class="retweet"><div class="deleted">原微博已删除</div></div>`;
     }
 
-    const rtName = retweet.user?.screen_name ?? '原博主';
-    const rtTime = retweet.created_at
-        ? formatWeiboTime(retweet.created_at)
+    const name = original.user?.screen_name ?? '原博主';
+    const time = original.created_at
+        ? formatWeiboTime(original.created_at)
         : '';
-    const rtContent = sanitizeWeiboHtml(
-        retweet.text ?? retweet.text_raw ?? '',
+    const content = sanitizeWeiboHtml(
+        original.text ?? original.text_raw ?? '',
     );
-    const rtImages = pickAllPostImages(retweet);
+    const images = pickAllPostImages(original);
 
     return `<div class="retweet">
-        <div class="rt-user">@${escapeHtml(rtName)}</div>
-        ${rtContent ? `<div class="rt-content">${rtContent}</div>` : ''}
-        ${renderImages(rtImages, ' rt-images')}
-        ${renderPageMedia(retweet.page_info)}
-        ${rtTime ? `<div class="rt-time">${escapeHtml(rtTime)}</div>` : ''}
+        <div class="rt-user">@${escapeHtml(name)}</div>
+        ${content ? `<div class="rt-content">${content}</div>` : ''}
+        ${renderImages(images, ' rt-images')}
+        ${renderPageMedia(original.page_info)}
+        ${time ? `<div class="rt-time">${escapeHtml(time)}</div>` : ''}
     </div>`;
 }

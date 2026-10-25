@@ -89,6 +89,34 @@ describe('sanitizeConfig: 多选 (指令触发方式)', () => {
     });
 });
 
+describe('sanitizeConfig: 多选 (推送内容类型)', () => {
+    it('过滤非法值并保留合法子集', () => {
+        expect(
+            sanitizeConfig({
+                weiboPushContentTypes: [
+                    'like',
+                    'bogus',
+                    'birthday',
+                ],
+            }).weiboPushContentTypes,
+        ).toEqual(['like', 'birthday']);
+    });
+
+    it('空数组是合法语义 (只推原创)', () => {
+        expect(
+            sanitizeConfig({ weiboPushContentTypes: [] })
+                .weiboPushContentTypes,
+        ).toEqual([]);
+    });
+
+    it('非数组输入回退默认', () => {
+        expect(
+            sanitizeConfig({ weiboPushContentTypes: 'like' })
+                .weiboPushContentTypes,
+        ).toEqual(DEFAULT_CONFIG.weiboPushContentTypes);
+    });
+});
+
 describe('sanitizeConfig: 字符串列表 (超管名单)', () => {
     it('逗号分隔串 → 去空白去空项的数组', () => {
         expect(

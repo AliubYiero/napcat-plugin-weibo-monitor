@@ -1,13 +1,25 @@
 import type { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { WeiboContentType } from 'shared';
 import type {
     PostEvent,
     PresentationSegment,
 } from '../../src/weibo/presentation';
 import { getPostId, getUserUid } from '../../src/weibo/predicate';
+import {
+    isAdPost,
+    resolvePostKind,
+} from '../../src/weibo/postKind';
 import { escapeHtml } from '../../src/weibo/sanitize';
 import type { WeiboPost } from '../../src/weibo/types';
+
+const ALL_CONTENT_TYPES: readonly WeiboContentType[] = [
+    'repost',
+    'like',
+    'ad',
+    'birthday',
+];
 
 export type LongTextStatus =
     | 'not-needed'
@@ -88,23 +100,31 @@ export function materializeText(
 export function explainQualified(
     post: WeiboPost,
     uid: string,
+    enabled: readonly WeiboContentType[] = ALL_CONTENT_TYPES,
 ): { qualified: boolean; reasons: string[] } {
     const reasons: string[] = [];
+    const kind = resolvePostKind(post);
     const authorUid = getUserUid(post);
-    if (authorUid !== uid) {
+    if (kind !== 'like' && authorUid !== uid) {
         reasons.push(`作者 UID: ${authorUid || '未知'}`);
     }
     if (Number(post.mblogtype) !== 0) {
         reasons.push(`mblogtype=${String(post.mblogtype)}`);
     }
-    if (Number(post.isTop) === 1) {
-        reasons.push('置顶');
-    }
-    if (post.isAd === true) {
-        reasons.push('广告');
-    }
     if (!getPostId(post)) {
         reasons.push('缺少动态 id');
+    }
+    if (isAdPost(post) && !enabled.includes('ad')) {
+        reasons.push('广告');
+    }
+    if (kind === 'like' && !enabled.includes('like')) {
+        reasons.push('点赞动态');
+    }
+    if (kind === 'birthday' && !enabled.includes('birthday')) {
+        reasons.push('生日动态');
+    }
+    if (kind === 'repost' && !enabled.includes('repost')) {
+        reasons.push('转发动态');
     }
     return { qualified: reasons.length === 0, reasons };
 }

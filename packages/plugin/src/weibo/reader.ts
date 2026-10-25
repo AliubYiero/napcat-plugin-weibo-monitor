@@ -12,6 +12,8 @@ import type {
     WeiboLongTextResponse,
     WeiboMyMblogResponse,
     WeiboPost,
+    WeiboPostIdentity,
+    WeiboPostRenderContext,
     WeiboProfileResponse,
     WeiboStatusResponse,
     WeiboUser,
@@ -78,7 +80,11 @@ export interface WeiboReader {
     fetchLongText(mblogid: string): Promise<LongTextResult>;
     hydrate(post: WeiboPost): Promise<WeiboPost>;
     hydrateStatus(post: WeiboPost): Promise<WeiboPost>;
-    renderCard(post: WeiboPost): Promise<CardRenderResult>;
+    renderCard(
+        post: WeiboPost,
+        context?: WeiboPostRenderContext,
+        identity?: WeiboPostIdentity,
+    ): Promise<CardRenderResult>;
 }
 
 export function extractPosts(body: unknown): WeiboPost[] {
@@ -252,10 +258,17 @@ class WeiboReaderImpl implements WeiboReader {
         return this.hydrateWith(post, hasTruncationSignal);
     }
 
-    async renderCard(post: WeiboPost): Promise<CardRenderResult> {
+    async renderCard(
+        post: WeiboPost,
+        context?: WeiboPostRenderContext,
+        identity?: WeiboPostIdentity,
+    ): Promise<CardRenderResult> {
         let html: string | null = null;
         try {
-            html = buildPostCardHtml(post);
+            html = buildPostCardHtml(post, {
+                context,
+                identity,
+            });
             const buffer = await this.deps.renderHtml(html);
             return { ok: true, buffer, html, message: '' };
         } catch (error) {

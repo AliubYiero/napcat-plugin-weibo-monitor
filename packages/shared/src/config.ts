@@ -219,6 +219,13 @@ export interface PluginConfig {
     weiboPushRenderMode: PushRenderMode;
 
     /**
+     * 推送内容类型 (多选): 转发 / 点赞 / 广告 / 生日。
+     * 原创动态始终推送; 广告是独立否决项, 关闭后所有广告 (含转发内广告)
+     * 都会被过滤。空数组表示只推送原创动态。
+     */
+    weiboPushContentTypes: WeiboContentType[];
+
+    /**
      * Chrome / Edge 可执行文件路径。留空时自动探测共享安装目录与系统浏览器。
      * 只在用户显式指定时填写——手填路径会被优先采用。
      */
@@ -253,6 +260,27 @@ export type PushRenderMode = 'image' | 'text';
 export const PUSH_RENDER_MODE_OPTIONS: readonly ConfigOption[] = [
     { label: '图片推送', value: 'image' },
     { label: '文本推送', value: 'text' },
+];
+
+/**
+ * 推送内容类型
+ *
+ * `repost`: 本人转发; `like`: 本人点赞 (含点赞插入条目);
+ * `ad`: 广告内容 (独立否决项); `birthday`: 生日动态。
+ * 原创动态不受本开关控制, 始终推送。
+ */
+export type WeiboContentType =
+    | 'repost'
+    | 'like'
+    | 'ad'
+    | 'birthday';
+
+/** 推送内容类型候选项 (与 WeiboContentType 同源) */
+export const WEIBO_CONTENT_TYPE_OPTIONS: readonly ConfigOption[] = [
+    { label: '转发动态', value: 'repost' },
+    { label: '点赞动态', value: 'like' },
+    { label: '广告动态', value: 'ad' },
+    { label: '生日动态', value: 'birthday' },
 ];
 
 /**
@@ -307,7 +335,7 @@ export const FIELDS = [
     {
         kind: 'section',
         label: '微博监听',
-        description: '轮询周期与浏览器路径',
+        description: '轮询周期、推送内容与浏览器路径',
     },
     {
         key: 'weiboPollIntervalMinutes',
@@ -329,6 +357,15 @@ export const FIELDS = [
         scope: 'webui',
         options: PUSH_RENDER_MODE_OPTIONS,
         default: 'image',
+    },
+    {
+        key: 'weiboPushContentTypes',
+        kind: 'multiSelect',
+        label: '推送内容类型',
+        description:
+            '原创动态始终推送; 广告是独立否决项, 关闭后所有广告 (含转发内广告) 都会被过滤; 部分商业游戏超话可能被误判为广告',
+        options: WEIBO_CONTENT_TYPE_OPTIONS,
+        default: ['repost', 'like', 'ad', 'birthday'],
     },
     {
         key: 'chromeExecutablePath',

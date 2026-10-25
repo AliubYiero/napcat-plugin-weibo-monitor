@@ -435,6 +435,7 @@ describe('buildPostCardHtml', () => {
                 },
             },
         });
+        expect(html).toContain('<div class="card has-retweet">');
         expect(html).toContain('class="rt-time"');
         expect(html).toContain('2023/12/07 01:35:24');
         expect(html.indexOf('class="rt-time"')).toBeGreaterThan(
@@ -549,5 +550,219 @@ describe('formatVideoDuration', () => {
         expect(formatVideoDuration('')).toBe('');
         expect(formatVideoDuration('abc')).toBe('');
         expect(formatVideoDuration(-1)).toBe('');
+    });
+});
+
+const LIKE_POST: WeiboPost = {
+    idstr: 'L1',
+    mid: 'L1',
+    created_at: 'Wed Oct 21 15:05:18 +0800 2026',
+    source: '微博网页版',
+    text: '原微博正文',
+    user: {
+        idstr: '999',
+        screen_name: '原博主',
+        avatar_large: 'https://tvax1.sinaimg.cn/original-avatar.jpg',
+    },
+    title: { text: '她10-24赞过的微博' },
+};
+
+const LIKE_OPTIONS = {
+    context: {
+        kind: 'like' as const,
+        likeDay: '2026-10-26',
+        fetchedAt: Date.UTC(2026, 9, 26, 0),
+    },
+    identity: {
+        screenName: '订阅博主',
+        avatar: 'https://tvax1.sinaimg.cn/subscriber-avatar.jpg',
+    },
+};
+
+const BIRTHDAY_POST: WeiboPost = {
+    idstr: 'B1',
+    mid: 'B1',
+    created_at: 'Wed Oct 21 15:05:18 +0800 2026',
+    source: '生日动态',
+    text: '不应出现的正文',
+    user: {
+        idstr: '123',
+        screen_name: '博主',
+        avatar_large: 'https://tvax1.sinaimg.cn/avatar.jpg',
+    },
+    page_info: {
+        title: '生日祝福',
+        page_url: 'https://weibo.com/birthday/1',
+        card_info: {
+            pic_url: 'https://wx1.sinaimg.cn/birthday.jpg',
+        },
+    },
+};
+
+describe('点赞卡片', () => {
+    it('外层用订阅博主身份, 信息栏展示点赞事件', () => {
+        const html = buildPostCardHtml(LIKE_POST, LIKE_OPTIONS);
+        expect(html).toContain('<div class="name">订阅博主</div>');
+        expect(html).toContain(
+            'https://tvax1.sinaimg.cn/subscriber-avatar.jpg',
+        );
+        expect(html).toContain('@原博主');
+        expect(html).not.toContain(
+            'https://tvax1.sinaimg.cn/original-avatar.jpg',
+        );
+        expect(html).toContain('2026/10/26 08:00:00');
+        expect(html).toContain('点赞了微博');
+        expect(html).not.toContain('微博网页版');
+        expect(html).toContain('<div class="card has-retweet">');
+        expect(html).toContain(
+            '.card.has-retweet { padding-bottom: 0; }',
+        );
+    });
+
+    it('原微博放在转发区块, 不输出原微博链接', () => {
+        const html = buildPostCardHtml(
+            {
+                ...LIKE_POST,
+                pic_ids: ['a'],
+                pic_infos: {
+                    a: {
+                        large: {
+                            url: 'https://wx1.sinaimg.cn/a.jpg',
+                        },
+                    },
+                },
+            },
+            LIKE_OPTIONS,
+        );
+        expect(html).toContain('@原博主');
+        expect(html).toContain('原微博正文');
+        expect(html).toContain(
+            'https://wx1.sinaimg.cn/a.jpg',
+        );
+        expect(html).not.toContain('查看原微博');
+        expect(html).not.toContain('https://weibo.com/999/L1');
+    });
+
+    it('原动态是转发时展示 //@ 理由与最原始博文', () => {
+        const html = buildPostCardHtml(
+            {
+                ...LIKE_POST,
+                text: '被点赞博主的转发理由',
+                retweeted_status: {
+                    idstr: 'R1',
+                    mid: 'R1',
+                    created_at: 'Tue Oct 20 10:00:00 +0800 2026',
+                    text: '最原始正文',
+                    user: {
+                        idstr: '777',
+                        screen_name: '最原始博主',
+                    },
+                    pic_ids: ['root'],
+                    pic_infos: {
+                        root: {
+                            large: {
+                                url: 'https://wx1.sinaimg.cn/root.jpg',
+                            },
+                        },
+                    },
+                },
+            },
+            LIKE_OPTIONS,
+        );
+
+        expect(html).toContain(
+            '//<a href="https://weibo.com/n/%E5%8E%9F%E5%8D%9A%E4%B8%BB" target="_blank" rel="noopener noreferrer">@原博主</a>:被点赞博主的转发理由',
+        );
+        expect(html).toContain('@最原始博主');
+        expect(html).toContain('最原始正文');
+        expect(html).toContain('https://wx1.sinaimg.cn/root.jpg');
+        expect(html).not.toContain('查看原微博');
+        expect(html).not.toContain('https://weibo.com/999/L1');
+        expect(html.match(/class="retweet"/g)).toHaveLength(1);
+    });
+
+    it('多层转发时转发块落到最原始博文', () => {
+        const root: WeiboPost = {
+            idstr: 'ROOT',
+            mid: 'ROOT',
+            text: '最原始正文',
+            user: { idstr: '777', screen_name: '最原始博主' },
+        };
+        const html = buildPostCardHtml(
+            {
+                ...LIKE_POST,
+                text: '被点赞博主的转发理由',
+                retweeted_status: {
+                    idstr: 'MIDDLE',
+                    mid: 'MIDDLE',
+                    text: '中间转发理由',
+                    retweeted_status: root,
+                },
+            },
+            LIKE_OPTIONS,
+        );
+
+        expect(html).toContain('@最原始博主');
+        expect(html).toContain('最原始正文');
+        expect(html).not.toContain('中间转发理由');
+    });
+});
+
+describe('生日卡片', () => {
+    it('输出封面、标题与站内生日页链接', () => {
+        const html = buildPostCardHtml(
+            BIRTHDAY_POST,
+            { context: { kind: 'birthday' } },
+        );
+        expect(html).toContain('birthday-card');
+        expect(html).toContain(
+            'https://wx1.sinaimg.cn/birthday.jpg',
+        );
+        expect(html).toContain('生日祝福');
+        expect(html).toContain('https://weibo.com/birthday/1');
+        expect(html).toContain('查看生日动态');
+        expect(html).not.toContain('不应出现的正文');
+    });
+
+    it('封面回退嵌套 pic_big, 标题回退 page_info', () => {
+        const html = buildPostCardHtml(
+            {
+                ...BIRTHDAY_POST,
+                page_info: {
+                    page_url: 'https://new.vip.weibo.cn/birthday/2',
+                    content1: '备用标题',
+                    card_info: {
+                        page_info: {
+                            pic_info: {
+                                pic_big: {
+                                    url: 'https://wx2.sinaimg.cn/fallback.jpg',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            { context: { kind: 'birthday' } },
+        );
+        expect(html).toContain(
+            'https://wx2.sinaimg.cn/fallback.jpg',
+        );
+        expect(html).toContain('备用标题');
+        expect(html).toContain(
+            'https://new.vip.weibo.cn/birthday/2',
+        );
+    });
+
+    it('无创建时间与地区时不输出占位', () => {
+        const html = buildPostCardHtml(
+            {
+                ...BIRTHDAY_POST,
+                created_at: undefined,
+                region_name: '北京',
+            },
+            { context: { kind: 'birthday' } },
+        );
+        expect(html).not.toContain('未知时间');
+        expect(html).not.toContain('北京');
     });
 });

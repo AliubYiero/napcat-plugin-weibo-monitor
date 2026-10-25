@@ -15,12 +15,12 @@ import {
     type PollSchedule,
 } from '../../weibo/pollSchedule';
 import { resolvePollingState } from '../../weibo/pollingState';
+import { findOwnerProfilePost } from '../../weibo/predicate';
 import {
-    filterQualifiedPosts,
-    getPostId,
-} from '../../weibo/predicate';
+    buildSeenBaseline,
+    resolveSeenCache,
+} from '../../weibo/seenCache';
 import type { WeiboPollingStatus } from '../../weibo/types';
-import { resolveWatermark } from '../../weibo/watermark';
 import { sessionConfigService } from '../sessionConfigService';
 import type { WeiboApiFailure } from './apiService';
 import { weiboApiService } from './apiService';
@@ -175,7 +175,7 @@ class WeiboPollingService {
             }
 
             // 暂停拉取: 全部推送目标都被禁用的 uid 本轮不请求, 并持久化标记。
-            // 重新启用后的首轮由 pollMonitor 走「游标重建」, 不补发禁用期动态。
+            // 重新启用后的首轮由 pollMonitor 走「基线重建」, 不补发禁用期动态。
             const cursorStore = WeiboCursorStore.getInstance();
             const activeMonitors = monitors.filter((monitor) => {
                 const enabled = monitor.to.some((target) =>
@@ -290,18 +290,18 @@ class WeiboPollingService {
 
         weiboRuntime.clearTargetError(monitor.uid);
 
-        const qualified = filterQualifiedPosts(
+        const now = Date.now();
+        const ownerPost = findOwnerProfilePost(
             result.posts,
             monitor.uid,
         );
-        const newest = qualified[0];
-        if (newest?.user) {
+        if (ownerPost?.user) {
             const name =
-                newest.user.screen_name ?? monitor.screenName;
+                ownerPost.user.screen_name ?? monitor.screenName;
             const avatar =
-                newest.user.avatar_large ??
-                newest.user.avatar_hd ??
-                newest.user.profile_image_url ??
+                ownerPost.user.avatar_large ??
+                ownerPost.user.avatar_hd ??
+                ownerPost.user.profile_image_url ??
                 monitor.avatar;
             if (
                 name !== monitor.screenName ||
@@ -318,48 +318,51 @@ class WeiboPollingService {
         const cursorStore = WeiboCursorStore.getInstance();
         const cursor = cursorStore.get(monitor.uid);
 
-        // 暂停后重新启用的首轮: 只把水位线推到最新一条, 不推送任何动态。
-        // 与「游标重建」同语义——止损, 不补发禁用期的历史。
+        // 暂停后重新启用的首轮: 用当前页全部条目重建已见缓存, 不推送。
+        // 与「基线重建」同语义——止损, 不补发禁用期的历史。
         if (cursor?.paused) {
-            const newest = qualified[0];
-            if (newest) {
-                cursorStore.set(
-                    monitor.uid,
-                    getPostId(newest),
-                    qualified.slice(0, 20).map(getPostId),
-                );
-            }
+            const baseline = buildSeenBaseline(result.posts, now);
+            cursorStore.set(monitor.uid, baseline);
             cursorStore.setPaused(monitor.uid, false);
             pluginState.logger.info(
-                `博主 ${monitor.uid} 已恢复推送, 水位线已重建 (不补发期间动态)`,
+                `博主 ${monitor.uid} 已恢复推送, 已见缓存已重建 (不补发期间动态)`,
             );
             return { ok: true, failure: null, message: null };
         }
 
-        const selection = resolveWatermark(qualified, {
-            watermark: cursor?.watermark ?? null,
-            recentIds: cursor?.recentIds ?? [],
-        });
+        const selection = resolveSeenCache(
+            result.posts,
+            monitor.uid,
+            {
+                seenIds: cursor?.seenIds ?? [],
+                initialized: cursor?.initialized ?? false,
+                watermark: cursor?.watermark ?? '',
+            },
+            pluginState.config.weiboPushContentTypes,
+            now,
+        );
 
-        if (selection.rebuilt) {
+        if (selection.reason === 'baseline') {
+            pluginState.logger.info(
+                `博主 ${monitor.uid} 首轮建立已见缓存 (不补发历史)`,
+            );
+        } else if (selection.reason === 'zero-overlap') {
             pluginState.logger.warn(
-                `(；′⌒\`) 博主 ${monitor.uid} 的水位线已失效, 已静默重建`,
+                `(；′⌒\`) 博主 ${monitor.uid} 的首页与已见缓存零重叠, 已静默重建`,
             );
         }
 
         if (
-            selection.nextWatermark &&
-            (selection.nextWatermark !== (cursor?.watermark ?? '') ||
-                !sameIds(
-                    selection.nextRecentIds,
-                    cursor?.recentIds ?? [],
-                ))
+            !cursor ||
+            selection.initialized !== cursor.initialized ||
+            selection.nextWatermark !== cursor.watermark ||
+            !sameIds(selection.nextSeenIds, cursor.seenIds)
         ) {
-            cursorStore.set(
-                monitor.uid,
-                selection.nextWatermark,
-                selection.nextRecentIds,
-            );
+            cursorStore.set(monitor.uid, {
+                watermark: selection.nextWatermark,
+                seenIds: selection.nextSeenIds,
+                initialized: selection.initialized,
+            });
         }
 
         const currentMonitor = WeiboMonitorStore.getInstance().get(
@@ -369,11 +372,31 @@ class WeiboPollingService {
             return { ok: true, failure: null, message: null };
         }
 
-        for (const post of selection.posts) {
-            await weiboPushService.pushPost(post, currentMonitor);
+        const context = (item: (typeof selection.pinned)[number]) => ({
+            kind: item.kind,
+            likeDay: item.likeDay,
+            fetchedAt: now,
+        });
+
+        for (const item of selection.pinned) {
+            await weiboPushService.pushPost(
+                item.post,
+                currentMonitor,
+                context(item),
+            );
+        }
+        for (const item of selection.posts) {
+            await weiboPushService.pushPost(
+                item.post,
+                currentMonitor,
+                context(item),
+            );
         }
 
-        if (selection.posts.length === 0) {
+        if (
+            selection.pinned.length === 0 &&
+            selection.posts.length === 0
+        ) {
             pluginState.logger.debug(
                 `微博无新动态 @${currentMonitor.screenName}`,
             );

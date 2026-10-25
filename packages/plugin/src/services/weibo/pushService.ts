@@ -2,7 +2,7 @@
  * 推送服务
  *
  * 一条动态只渲染一次, 再按订阅目标逐个发送。会话未启用时跳过发送,
- * 但水位线照常推进 (由轮询层负责), 避免重新启用后补推历史。
+ * 但已见缓存照常推进 (由轮询层负责), 避免重新启用后补推历史。
  */
 
 import { pluginState } from '../../core/state';
@@ -22,6 +22,8 @@ import type {
     WeiboMonitor,
     WeiboMonitorTarget,
     WeiboPost,
+    WeiboPostIdentity,
+    WeiboPostRenderContext,
 } from '../../weibo/types';
 import { sessionConfigService } from '../sessionConfigService';
 import { weiboLongTextService } from './longTextService';
@@ -47,6 +49,7 @@ class WeiboPushService {
     async pushPost(
         post: WeiboPost,
         monitor: WeiboMonitor,
+        context?: WeiboPostRenderContext,
     ): Promise<PushResult> {
         const enabled = monitor.to.filter((target) =>
             sessionConfigService.isSessionEnabled(
@@ -59,7 +62,15 @@ class WeiboPushService {
         }
 
         const content = await weiboLongTextService.hydrate(post);
-        const { primary, fallback } = await this.render(content);
+        const identity: WeiboPostIdentity = {
+            screenName: monitor.screenName,
+            avatar: monitor.avatar,
+        };
+        const { primary, fallback } = await this.render(
+            content,
+            context,
+            identity,
+        );
 
         let pushed = 0;
         let failed = 0;
@@ -93,27 +104,44 @@ class WeiboPushService {
     async pushPostTo(
         post: WeiboPost,
         target: WeiboMonitorTarget,
+        context?: WeiboPostRenderContext,
     ): Promise<boolean> {
-        const { primary, fallback } = await this.render(post);
+        const { primary, fallback } = await this.render(
+            post,
+            context,
+        );
         const ok = await this.send(target.type, target.id, primary);
         if (ok) return true;
         return this.send(target.type, target.id, fallback);
     }
 
-    private async render(post: WeiboPost): Promise<RenderedMessage> {
+    private async render(
+        post: WeiboPost,
+        context?: WeiboPostRenderContext,
+        identity?: WeiboPostIdentity,
+    ): Promise<RenderedMessage> {
         const mode = pluginState.config.weiboPushRenderMode;
         const cardImage =
             mode === 'image'
-                ? await cardRenderService.render(post)
+                ? await cardRenderService.render(
+                      post,
+                      context,
+                      identity,
+                  )
                 : null;
+        const options = { context, identity };
 
         return {
             primary: toMessage(
                 mode === 'image'
-                    ? buildImagePresentation(post, cardImage)
-                    : buildTextPresentation(post),
+                    ? buildImagePresentation(
+                          post,
+                          cardImage,
+                          options,
+                      )
+                    : buildTextPresentation(post, options),
             ),
-            fallback: buildPlainText(post),
+            fallback: buildPlainText(post, options),
         };
     }
 

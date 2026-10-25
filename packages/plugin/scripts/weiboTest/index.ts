@@ -14,6 +14,10 @@ import {
 } from '../../src/weibo/longText';
 import { getPostId } from '../../src/weibo/predicate';
 import {
+    parseLikeDay,
+    resolvePostKind,
+} from '../../src/weibo/postKind';
+import {
     buildTextPresentation,
     resolvePostEvent,
 } from '../../src/weibo/presentation';
@@ -99,17 +103,39 @@ async function main(): Promise<void> {
         const userAgent = buildUserAgent(
             session.getVersion() ?? '120.0.0.0',
         );
+        const identity = {
+            screenName,
+            avatar:
+                profile.user?.avatar_large ??
+                profile.user?.avatar_hd ??
+                profile.user?.profile_image_url ??
+                '',
+        };
+        const now = Date.now();
         const reports: PostReport[] = [];
 
         for (const [index, rawPost] of firstPage.posts.entries()) {
             const position = index + 1;
             const base = postFileBase(position, rawPost);
             const qualification = explainQualified(rawPost, env.uid);
+            const kind = resolvePostKind(rawPost);
+            const context = {
+                kind,
+                likeDay:
+                    kind === 'like'
+                        ? parseLikeDay(rawPost, now)
+                        : null,
+                fetchedAt: now,
+            };
             const { post, status: longTextStatus } =
                 await hydrateAndResolveStatus(reader, rawPost);
             const errors: string[] = [];
 
-            const card = await reader.renderCard(post);
+            const card = await reader.renderCard(
+                post,
+                context,
+                identity,
+            );
             let cardFile: string | null = null;
             let cardError: string | null = null;
             let cardHtmlFile: string | null = null;
@@ -129,7 +155,9 @@ async function main(): Promise<void> {
                 writeTextFile(outputDir, cardHtmlFile, card.html);
             }
 
-            const text = materializeText(buildTextPresentation(post));
+            const text = materializeText(
+                buildTextPresentation(post, { context, identity }),
+            );
             writeTextFile(outputDir, `${base}.txt`, `${text}\n`);
 
             const attachments = await downloadAttachments(
@@ -144,8 +172,11 @@ async function main(): Promise<void> {
                 index: position,
                 id: getPostId(post),
                 mblogid: post.mblogid ?? '',
-                screenName: post.user?.screen_name ?? screenName,
-                event: resolvePostEvent(post),
+                screenName:
+                    kind === 'like'
+                        ? screenName
+                        : (post.user?.screen_name ?? screenName),
+                event: resolvePostEvent(post, kind),
                 qualified: qualification.qualified,
                 qualifiedReasons: qualification.reasons,
                 longTextStatus,

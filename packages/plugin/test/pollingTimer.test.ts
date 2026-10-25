@@ -19,7 +19,15 @@ const mocks = vi.hoisted(() => ({
     cursorSetPaused: vi.fn(),
     isSessionEnabled: vi.fn(() => true),
     updateMeta: vi.fn(),
-    config: { weiboPollIntervalMinutes: 60 },
+    config: {
+        weiboPollIntervalMinutes: 60,
+        weiboPushContentTypes: [
+            'repost',
+            'like',
+            'ad',
+            'birthday',
+        ] as const,
+    },
     logger: {
         log: vi.fn(),
         debug: vi.fn(),

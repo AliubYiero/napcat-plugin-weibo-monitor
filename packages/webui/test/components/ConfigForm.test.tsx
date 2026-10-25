@@ -36,7 +36,7 @@ describe('ConfigForm', () => {
     it('渲染 section 的 description 作为卡片副标题', () => {
         renderForm();
         expect(
-            screen.getByText('轮询周期与浏览器路径'),
+            screen.getByText('轮询周期、推送内容与浏览器路径'),
         ).toBeInTheDocument();
     });
 

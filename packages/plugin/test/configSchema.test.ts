@@ -129,7 +129,7 @@ describe('buildConfigSchema 分组布局', () => {
             'napcat-plugin-section-desc',
         );
         expect(htmlOf(demo as FakeItem)).toContain(
-            '轮询周期与浏览器路径',
+            '轮询周期、推送内容与浏览器路径',
         );
     });
 

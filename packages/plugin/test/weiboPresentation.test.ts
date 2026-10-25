@@ -441,3 +441,237 @@ describe('buildPlainText', () => {
         expect(text).not.toContain('cover.jpg');
     });
 });
+
+const LIKE: WeiboPost = {
+    idstr: 'L1',
+    mid: 'L1',
+    created_at: 'Wed Oct 21 15:05:18 +0800 2026',
+    source: '微博网页版',
+    text: '原微博正文',
+    user: { idstr: '999', screen_name: '原博主' },
+    title: { text: '她10-24赞过的微博' },
+};
+
+const LIKE_OPTIONS = {
+    context: {
+        kind: 'like' as const,
+        likeDay: '2026-10-26',
+        fetchedAt: Date.UTC(2026, 9, 26, 0),
+    },
+    identity: { screenName: '博主', avatar: '' },
+};
+
+const BIRTHDAY: WeiboPost = {
+    idstr: 'B1',
+    mid: 'B1',
+    created_at: 'Wed Oct 21 15:05:18 +0800 2026',
+    source: '生日动态',
+    user: { idstr: '123', screen_name: '博主' },
+    page_info: {
+        title: '生日祝福',
+        page_url: 'https://weibo.com/birthday/1',
+        card_info: {
+            pic_url: 'https://wx1.sinaimg.cn/birthday.jpg',
+        },
+    },
+};
+
+const BIRTHDAY_OPTIONS = {
+    context: { kind: 'birthday' as const },
+    identity: { screenName: '博主', avatar: '' },
+};
+
+describe('点赞动态', () => {
+    it('外层为订阅博主, 原微博用日期去重但展示原时间', () => {
+        expect(resolvePostEvent(LIKE, 'like')).toBe('点赞了微博');
+        expect(buildPushHeader(LIKE, LIKE_OPTIONS)).toBe(
+            '[2026/10/26 08:00:00] 「博主」点赞了微博',
+        );
+        expect(textOf(buildTextPresentation(LIKE, LIKE_OPTIONS))).toBe(
+            [
+                '[2026/10/26 08:00:00] 「博主」点赞了微博',
+                '',
+                '────────',
+                '',
+                '[2026/10/21 15:05:18] 「原博主」',
+                '原微博正文',
+            ].join('\n'),
+        );
+    });
+
+    it('原动态是转发时输出 //@ 理由与最原始博文', () => {
+        const segments = buildTextPresentation(
+            {
+                ...LIKE,
+                text: '被点赞博主的转发理由',
+                retweeted_status: {
+                    idstr: 'R1',
+                    mid: 'R1',
+                    created_at: 'Tue Oct 20 10:00:00 +0800 2026',
+                    text: '最原始正文',
+                    user: {
+                        idstr: '777',
+                        screen_name: '最原始博主',
+                    },
+                    pic_ids: ['root'],
+                    pic_infos: {
+                        root: {
+                            large: {
+                                url: 'https://wx1.sinaimg.cn/root.jpg',
+                            },
+                        },
+                    },
+                },
+            },
+            LIKE_OPTIONS,
+        );
+
+        expect(textOf(segments)).toBe(
+            [
+                '[2026/10/26 08:00:00] 「博主」点赞了微博',
+                '//@原博主:被点赞博主的转发理由',
+                '',
+                '────────',
+                '',
+                '[2026/10/20 10:00:00] 「最原始博主」',
+                '最原始正文',
+            ].join('\n'),
+        );
+        expect(imagesOf(segments)).toEqual([
+            'https://wx1.sinaimg.cn/root.jpg',
+        ]);
+        expect(textOf(segments)).not.toContain('https://weibo.com/');
+    });
+
+    it('多层转发取最原始博文', () => {
+        const segments = buildTextPresentation(
+            {
+                ...LIKE,
+                text: '被点赞博主的转发理由',
+                retweeted_status: {
+                    idstr: 'MIDDLE',
+                    text: '中间转发理由',
+                    retweeted_status: {
+                        idstr: 'ROOT',
+                        created_at: 'Tue Oct 20 10:00:00 +0800 2026',
+                        text: '最原始正文',
+                        user: { screen_name: '最原始博主' },
+                    },
+                },
+            },
+            LIKE_OPTIONS,
+        );
+
+        expect(textOf(segments)).toContain('最原始正文');
+        expect(textOf(segments)).not.toContain('中间转发理由');
+    });
+
+    it('标题缺失点赞日期时不输出时间括号', () => {
+        const header = buildPushHeader(
+            { ...LIKE, title: { text: '赞过的微博' } },
+            {
+                context: { kind: 'like', likeDay: null },
+                identity: LIKE_OPTIONS.identity,
+            },
+        );
+        expect(header).toBe('「博主」点赞了微博');
+    });
+
+    it('文本模式追加原微博附图', () => {
+        const segments = buildTextPresentation(
+            {
+                ...LIKE,
+                pic_ids: ['a'],
+                pic_infos: {
+                    a: {
+                        large: {
+                            url: 'https://wx1.sinaimg.cn/a.jpg',
+                        },
+                    },
+                },
+            },
+            LIKE_OPTIONS,
+        );
+        expect(imagesOf(segments)).toEqual([
+            'https://wx1.sinaimg.cn/a.jpg',
+        ]);
+    });
+
+    it('图片模式只发卡片, 不再重复原微博附图', () => {
+        const segments = buildImagePresentation(
+            {
+                ...LIKE,
+                pic_ids: ['a'],
+                pic_infos: {
+                    a: {
+                        large: {
+                            url: 'https://wx1.sinaimg.cn/a.jpg',
+                        },
+                    },
+                },
+            },
+            'base64://card',
+            LIKE_OPTIONS,
+        );
+        expect(textOf(segments)).toBe(
+            '[2026/10/26 08:00:00] 「博主」点赞了微博',
+        );
+        expect(imagesOf(segments)).toEqual(['base64://card']);
+    });
+
+    it('纯文本降级不输出来源与原微博链接', () => {
+        const text = buildPlainText(LIKE, LIKE_OPTIONS);
+        expect(text).toContain('点赞了微博');
+        expect(text).not.toContain('来源：微博网页版');
+        expect(text).not.toContain('https://weibo.com/999/L1');
+        expect(text).toContain('原微博正文');
+    });
+});
+
+describe('生日动态', () => {
+    it('输出事件、标题与生日页链接', () => {
+        expect(resolvePostEvent(BIRTHDAY, 'birthday')).toBe(
+            '发布了生日动态',
+        );
+        expect(buildPushHeader(BIRTHDAY, BIRTHDAY_OPTIONS)).toBe(
+            '[2026/10/21 15:05:18] 「博主」发布了生日动态',
+        );
+        expect(
+            textOf(buildTextPresentation(BIRTHDAY, BIRTHDAY_OPTIONS)),
+        ).toBe(
+            [
+                '[2026/10/21 15:05:18] 「博主」发布了生日动态',
+                '生日祝福',
+                'https://weibo.com/birthday/1',
+            ].join('\n'),
+        );
+    });
+
+    it('文本模式不追加正文或封面', () => {
+        const segments = buildTextPresentation(
+            {
+                ...BIRTHDAY,
+                text: '不应出现的正文',
+                pic_ids: ['cover'],
+            },
+            BIRTHDAY_OPTIONS,
+        );
+        expect(textOf(segments)).not.toContain('不应出现的正文');
+        expect(imagesOf(segments)).toEqual([]);
+    });
+
+    it('图片模式只发卡片, 不重复生日封面', () => {
+        const segments = buildImagePresentation(
+            BIRTHDAY,
+            'base64://card',
+            BIRTHDAY_OPTIONS,
+        );
+        expect(textOf(segments)).toBe(
+            [
+                '[2026/10/21 15:05:18] 「博主」发布了生日动态',
+                'https://weibo.com/birthday/1',
+            ].join('\n'),
+        );
+        expect(imagesOf(segments)).toEqual(['base64://card']);
+    });
+});

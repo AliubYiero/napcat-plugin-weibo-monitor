@@ -13,6 +13,7 @@ const EXPECTED_KEYS = [
     'triggerModes',
     'weiboPollIntervalMinutes',
     'weiboPushRenderMode',
+    'weiboPushContentTypes',
     'chromeExecutablePath',
 ];
 
@@ -84,6 +85,24 @@ describe('FIELDS 声明源', () => {
             ],
         });
     });
+
+    it('推送内容类型为双端多选, 默认全选', () => {
+        const field: ConfigField | undefined = FIELDS.find(
+            (item) =>
+                'key' in item && item.key === 'weiboPushContentTypes',
+        );
+        expect(field).toMatchObject({
+            kind: 'multiSelect',
+            default: ['repost', 'like', 'ad', 'birthday'],
+            options: [
+                { label: '转发动态', value: 'repost' },
+                { label: '点赞动态', value: 'like' },
+                { label: '广告动态', value: 'ad' },
+                { label: '生日动态', value: 'birthday' },
+            ],
+        });
+        expect(field?.scope).toBeUndefined();
+    });
 });
 
 describe('getDefaultConfig: 从 FIELDS 派生', () => {
@@ -95,11 +114,20 @@ describe('getDefaultConfig: 从 FIELDS 派生', () => {
             triggerModes: ['prefix', 'atBot'],
             weiboPollIntervalMinutes: 60,
             weiboPushRenderMode: 'image',
+            weiboPushContentTypes: [
+                'repost',
+                'like',
+                'ad',
+                'birthday',
+            ],
             chromeExecutablePath: '',
         });
         expect(a).not.toBe(b);
         expect(a.adminUsers).not.toBe(b.adminUsers);
         expect(a.triggerModes).not.toBe(b.triggerModes);
+        expect(a.weiboPushContentTypes).not.toBe(
+            b.weiboPushContentTypes,
+        );
     });
 });
 

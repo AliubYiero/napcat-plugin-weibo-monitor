@@ -29,19 +29,46 @@ export interface WeiboMonitor {
     to: WeiboMonitorTarget[];
 }
 
-/** 动态水位线 (数据文件 `weibo-cursor.json`) */
+/** 已见动态缓存 (数据文件 `weibo-cursor.json`) */
 export interface WeiboCursor {
-    /** 最新一条已计入的动态 id */
+    /**
+     * 最新一条已计入的动态 id, 仅用于状态页展示。
+     * 去重判定只认 `seenIds`, 不再把水位线作为游标锚点。
+     */
     watermark: string;
-    /** 最近一次成功轮询中看到的动态 id, 用于水位线不在首页时兜底 */
-    recentIds: string[];
+    /** 已见动态去重键 (点赞使用「原微博 id + 点赞日期」), 最多 100 个 */
+    seenIds: string[];
+    /** 是否已完成首轮基线; false 时只播种、不推送 */
+    initialized: boolean;
     /** 最后更新时间 (毫秒时间戳) */
     updatedAt: number;
     /**
      * 暂停标记: 该 uid 的全部推送目标都被禁用时为 true。
-     * 重新启用后的首轮只重建水位线、不推送, 随后清除。
+     * 重新启用后的首轮只重建已见缓存、不推送, 随后清除。
      */
     paused?: boolean;
+}
+
+/** 动态的展示分类 (原创 / 转发 / 点赞 / 生日) */
+export type WeiboPostKind =
+    | 'original'
+    | 'repost'
+    | 'like'
+    | 'birthday';
+
+/** 渲染时需要的分类上下文 */
+export interface WeiboPostRenderContext {
+    kind: WeiboPostKind;
+    /** 点赞日期 `YYYY-MM-DD`; 仅点赞条目使用 */
+    likeDay?: string | null;
+    /** 首次拉到该条目的轮询时间 (毫秒), 用于同日点赞补时分秒 */
+    fetchedAt?: number;
+}
+
+/** 推送外层身份 (点赞事件使用订阅博主, 而不是原动态作者) */
+export interface WeiboPostIdentity {
+    screenName: string;
+    avatar: string;
 }
 
 /** 浏览器页面内一次接口请求的原始结果 */
@@ -96,6 +123,16 @@ export interface WeiboPageInfo {
     page_pic?: string | { url?: string };
     /** 播放量成品文案, 如「3万次播放」 */
     play_count?: string | number;
+    /** 生日/活动等卡片信息 (生日动态的封面在这里) */
+    card_info?: {
+        pic_url?: string;
+        page_info?: {
+            pic_info?: {
+                pic_big?: { url?: string };
+            };
+        };
+        [key: string]: unknown;
+    };
     media_info?: {
         stream_url?: string;
         stream_url_hd?: string;
@@ -111,6 +148,13 @@ export interface WeiboPageInfo {
     [key: string]: unknown;
 }
 
+/** 动态标题 (点赞插入条目在这里标记「赞过的微博」) */
+export interface WeiboPostTitle {
+    text?: string;
+    structs?: unknown[];
+    [key: string]: unknown;
+}
+
 /** 一条微博动态 (只建模卡片需要的字段) */
 export interface WeiboPost {
     id?: number | string;
@@ -120,12 +164,15 @@ export interface WeiboPost {
     mblogtype?: number;
     isLongText?: boolean | number;
     isTop?: number | boolean;
-    isAd?: boolean;
+    isAd?: boolean | number | string;
     created_at?: string;
     source?: string;
     region_name?: string;
     text?: string;
     text_raw?: string;
+    title?: WeiboPostTitle | string;
+    /** 点赞插入条目的来源标记, 形如 profile_insert_type:like_status */
+    analysis_extra?: string;
     pic_ids?: string[];
     pic_infos?: Record<string, WeiboPicInfo>;
     mix_media_info?: WeiboMixMediaInfo;

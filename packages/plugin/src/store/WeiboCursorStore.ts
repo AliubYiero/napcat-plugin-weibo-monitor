@@ -1,18 +1,20 @@
 /**
  * 微博游标 store (`weibo-cursor.json`)
  *
- * 记录每个博主的水位线与最近 id 集合。数据是"uid → 游标"的映射而非列表,
- * 因此不复用 BaseStore, 但同样遵守单例 + 延迟实例化 + 立即落盘。
+ * 数据是"uid → 游标"的映射而非列表, 因此不复用 BaseStore,
+ * 但同样遵守单例 + 延迟实例化 + 立即落盘。
  */
 
 import { pluginState } from '../core/state';
+import { SEEN_ID_LIMIT } from '../weibo/seenCache';
 import type { WeiboCursor } from '../weibo/types';
 
 type CursorMap = Record<string, WeiboCursor>;
 
 const EMPTY: WeiboCursor = {
     watermark: '',
-    recentIds: [],
+    seenIds: [],
+    initialized: false,
     updatedAt: 0,
 };
 
@@ -36,7 +38,7 @@ export class WeiboCursorStore {
     get(uid: string): WeiboCursor | undefined {
         const item = this.data[uid];
         return item
-            ? { ...item, recentIds: [...item.recentIds] }
+            ? { ...item, seenIds: [...item.seenIds] }
             : undefined;
     }
 
@@ -45,15 +47,19 @@ export class WeiboCursorStore {
         return Object.entries(this.data).map(([uid, cursor]) => ({
             uid,
             ...cursor,
-            recentIds: [...cursor.recentIds],
+            seenIds: [...cursor.seenIds],
         }));
     }
 
-    /** 写入水位线与最近 id 集合 */
-    set(uid: string, watermark: string, recentIds: string[]): void {
+    /** 写入已见缓存与展示水位线 */
+    set(
+        uid: string,
+        next: Pick<WeiboCursor, 'watermark' | 'seenIds' | 'initialized'>,
+    ): void {
         this.data[uid] = {
-            watermark,
-            recentIds: recentIds.slice(0, 20),
+            watermark: next.watermark,
+            seenIds: next.seenIds.slice(0, SEEN_ID_LIMIT),
+            initialized: next.initialized,
             updatedAt: Date.now(),
         };
         this.save();
@@ -62,7 +68,7 @@ export class WeiboCursorStore {
     /**
      * 标记/清除暂停拉取状态 (幂等, 无变化时不落盘)
      *
-     * 暂停标记持久化, 使插件重启后重新启用仍能走「游标重建不补发」。
+     * 暂停标记持久化, 使插件重启后重新启用仍能走「基线重建不补发」。
      */
     setPaused(uid: string, paused: boolean): void {
         const current = this.data[uid];
@@ -74,11 +80,8 @@ export class WeiboCursorStore {
             };
         } else {
             if (!current || current.paused !== true) return;
-            this.data[uid] = {
-                watermark: current.watermark,
-                recentIds: current.recentIds,
-                updatedAt: current.updatedAt,
-            };
+            const { paused: _paused, ...rest } = current;
+            this.data[uid] = rest;
         }
         this.save();
     }
@@ -129,20 +132,31 @@ export class WeiboCursorStore {
     }
 }
 
+/**
+ * 旧游标升级: 丢弃 watermark / recentIds 锚点, 只保留 paused。
+ * 新的 initialized 标记缺失时视为未初始化, 首轮走基线不补发。
+ */
 function normalizeCursor(value: unknown): WeiboCursor | null {
-    if (!isRecord(value)) return EMPTY;
-    const watermark =
-        typeof value.watermark === 'string' ? value.watermark : '';
-    const recentIds = Array.isArray(value.recentIds)
-        ? value.recentIds.filter(
-              (id): id is string => typeof id === 'string',
-          )
+    if (!isRecord(value)) return { ...EMPTY, seenIds: [] };
+    const hasSeenSchema =
+        Array.isArray(value.seenIds) || value.initialized === true;
+    const seenIds = hasSeenSchema && Array.isArray(value.seenIds)
+        ? value.seenIds
+              .filter(
+                  (id): id is string => typeof id === 'string',
+              )
+              .slice(0, SEEN_ID_LIMIT)
         : [];
+    const watermark =
+        hasSeenSchema && typeof value.watermark === 'string'
+            ? value.watermark
+            : '';
     const updatedAt =
         typeof value.updatedAt === 'number' ? value.updatedAt : 0;
     return {
         watermark,
-        recentIds,
+        seenIds,
+        initialized: value.initialized === true,
         updatedAt,
         paused: value.paused === true,
     };
