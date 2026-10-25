@@ -107,6 +107,31 @@ describe('sanitizeWeiboHtml', () => {
         expect(html.match(/<a /g)).toHaveLength(3);
     });
 
+    it('连续话题标签全部转为链接', () => {
+        const html = sanitizeWeiboHtml(
+            '#育碧##育碧游戏##育碧40周年#',
+        );
+        expect(html.match(/<a /g)).toHaveLength(3);
+        for (const label of ['#育碧#', '#育碧游戏#', '#育碧40周年#']) {
+            expect(html).toContain(`>${label}</a>`);
+        }
+    });
+
+    it('紧贴字母的 #话题# 也转链接', () => {
+        const html = sanitizeWeiboHtml('abc#def#');
+        expect(html).toBe(
+            'abc<a href="https://s.weibo.com/weibo?q=%23def%23" target="_blank" rel="noopener noreferrer">#def#</a>',
+        );
+    });
+
+    it('话题内部允许空格, 首尾空白不算话题', () => {
+        const html = sanitizeWeiboHtml(
+            '#Seventeen Hubert# 与 #5 and #6',
+        );
+        expect(html.match(/<a /g)).toHaveLength(1);
+        expect(html).toContain('>#Seventeen Hubert#</a>');
+    });
+
     it('邮箱不会被误判为 @ 提及', () => {
         const html = sanitizeWeiboHtml('联系 nox@vrp.live');
         expect(html).not.toContain('weibo.com/n/');

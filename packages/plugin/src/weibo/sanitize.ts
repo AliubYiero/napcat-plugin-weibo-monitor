@@ -130,7 +130,10 @@ const CONTENT_URL_RE =
     /https?:\/\/[^\s<>"'，。；：！？、）】》”’]+/gi;
 const CONTENT_MENTION_RE =
     /(?<![\w.@])@[\w\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af·-]{1,30}/g;
-const CONTENT_TOPIC_RE = /(?<![\w#])#[^#\s<>"']{1,40}#/g;
+// 任意一对 # 包住的内容 (允许内部空格), 首尾非空白, 内容 1..40 字符。
+// 不能限制前一个字符 (连续话题如 #a##b# 必须全部命中), 也不收窄到无空格,
+// 否则长文纯文本里的 #话题 带空格# 会整段失效。
+const CONTENT_TOPIC_RE = /#(?=[^#\s])[^#]{1,40}(?<=[^#\s])#/g;
 const URL_TRAILING_PUNCTUATION_RE =
     /[.,;:!?，。；：！？、）】》”’]+$/u;
 
@@ -219,6 +222,7 @@ interface ContentMatch {
  *
  * 只处理不在现有 `<a>` 内的文本; URL 优先于其内部的 @ / #,
  * 邮箱 (如 `nox@vrp.live`) 不会被误判为 @ 提及。
+ * 话题按"一对 `#` 之间的内容"识别 (允许内部空格), 相邻话题互不影响。
  */
 function linkifyContentLine(line: string): string {
     if (!line) return '';
