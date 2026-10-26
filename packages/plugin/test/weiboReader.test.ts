@@ -24,6 +24,10 @@ function createDeps(
 }
 
 describe('classifyFailure', () => {
+    it('401 判定为失效', () => {
+        expect(classifyFailure(401, null)).toBe('invalid');
+    });
+
     it('418 / 403 判定为风控', () => {
         expect(classifyFailure(418, null)).toBe('risk');
         expect(classifyFailure(403, null)).toBe('risk');

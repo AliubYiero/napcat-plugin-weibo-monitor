@@ -10,6 +10,7 @@ import {
 import { showToast } from '../hooks/useToast';
 import type {
     CookieActionResult,
+    LoginProbeResult,
     PluginStatus,
     WeiboBrowserStatus,
     WeiboCookieStatus,
@@ -41,7 +42,7 @@ export default function AccountPage() {
     );
     const [busy, setBusy] = useState(false);
     const [cookieBusy, setCookieBusy] = useState<
-        'save' | 'validate' | null
+        'save' | 'validate' | 'keepalive' | null
     >(null);
     const [loading, setLoading] = useState(true);
 
@@ -164,6 +165,33 @@ export default function AccountPage() {
         }
     };
 
+    const keepAliveCookie = async () => {
+        setBusy(true);
+        setCookieBusy('keepalive');
+        setResult(null);
+        try {
+            const res = await noAuthFetch<CookieActionResult>(
+                '/weibo/cookie/keepalive',
+                { method: 'POST' },
+            );
+            const data = res.data ?? {
+                valid: false,
+                message: '未知结果',
+            };
+            setResult(data);
+            showToast(
+                data.message,
+                data.valid ? 'success' : 'warning',
+            );
+            await fetchStatus();
+        } catch {
+            showToast('保活失败', 'error');
+        } finally {
+            setBusy(false);
+            setCookieBusy(null);
+        }
+    };
+
     const clearCookie = async () => {
         setBusy(true);
         try {
@@ -228,6 +256,40 @@ export default function AccountPage() {
 
     return (
         <div className="space-y-5">
+            {cookieStatus?.invalid && (
+                <section className="card p-4 border border-red-500/30 bg-red-500/5 animate-fade-in-up">
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
+                            <IconAlert size={16} />
+                        </div>
+                        <div className="min-w-0">
+                            <h2 className="font-semibold text-sm text-red-600 dark:text-red-400">
+                                Cookie 已失效，轮询已暂停
+                            </h2>
+                            <p className="text-xs text-gray-500 mt-1">
+                                最后成功：
+                                {formatTime(
+                                    cookieStatus.lastSuccessAt ??
+                                        null,
+                                )}
+                                {' · '}
+                                已持续：
+                                {formatDuration(
+                                    cookieStatus.invalidSince,
+                                )}
+                                {cookieStatus.lastProbeMessage
+                                    ? ` · ${cookieStatus.lastProbeMessage}`
+                                    : ''}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                                每日保活仍在尝试自动恢复；如持续失效，请重新粘贴
+                                Cookie。
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
+
             <section className="card p-5 animate-fade-in-up">
                 <div className="flex items-start justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3">
@@ -275,6 +337,27 @@ export default function AccountPage() {
                         label="最后刷新"
                         value={formatRelative(
                             cookieStatus?.lastRefreshAt ?? null,
+                        )}
+                    />
+                    <InfoCell
+                        label="最后保活"
+                        value={formatTime(
+                            cookieStatus?.lastKeepAliveAt ?? null,
+                        )}
+                    />
+                    <InfoCell
+                        label="登录态探测"
+                        value={formatProbe(
+                            cookieStatus?.lastProbeResult ?? null,
+                            cookieStatus?.lastProbeAt ?? null,
+                        )}
+                    />
+                    <InfoCell
+                        label="保活连续失败"
+                        value={formatKeepAliveFailure(
+                            cookieStatus?.keepAliveFailureCount ?? 0,
+                            cookieStatus?.keepAliveInconclusiveCount ??
+                                0,
                         )}
                     />
                 </div>
@@ -341,6 +424,23 @@ export default function AccountPage() {
                             {cookieBusy === 'validate'
                                 ? '校验中...'
                                 : '校验当前'}
+                        </button>
+                    )}
+                    {!editing && (
+                        <button
+                            type="button"
+                            className="btn btn-ghost text-xs"
+                            disabled={busy || !configured}
+                            onClick={keepAliveCookie}
+                        >
+                            {cookieBusy === 'keepalive' ? (
+                                <span className="loading-spinner" />
+                            ) : (
+                                <IconRefresh size={13} />
+                            )}
+                            {cookieBusy === 'keepalive'
+                                ? '保活中...'
+                                : '立即保活'}
                         </button>
                     )}
                     {editing && (
@@ -485,6 +585,39 @@ export default function AccountPage() {
             </section>
         </div>
     );
+}
+
+function formatProbe(
+    result: LoginProbeResult | null,
+    at: number | null,
+): string {
+    if (result === null) return '尚未探测';
+    const label =
+        result === 'valid'
+            ? '正常'
+            : result === 'invalid'
+              ? '失效'
+              : '不确定';
+    return at === null ? label : `${label} (${formatRelative(at)})`;
+}
+
+function formatKeepAliveFailure(
+    failure: number,
+    inconclusive: number,
+): string {
+    const parts: string[] = [];
+    if (failure > 0) parts.push(`执行失败 ${failure}`);
+    if (inconclusive > 0) parts.push(`不确定 ${inconclusive}`);
+    return parts.length > 0 ? parts.join(' · ') : '无';
+}
+
+function formatDuration(since: number | null): string {
+    if (since === null) return '未知';
+    const elapsed = Math.max(0, Date.now() - since);
+    const days = Math.floor(elapsed / 86_400_000);
+    if (days >= 1) return `${days} 天`;
+    const hours = Math.max(1, Math.floor(elapsed / 3_600_000));
+    return `${hours} 小时`;
 }
 
 function StatusBadge({ ok, text }: { ok: boolean; text: string }) {

@@ -16,6 +16,8 @@ class WeiboRuntime {
     backoffUntil: number | null = null;
     lastError: string | null = null;
     lastErrorAt: number | null = null;
+    /** 保活探测已通过, 等待首轮真实鉴权调用确认后解除失效 */
+    recoveryPending = false;
 
     private targets = new Map<string, TargetRuntime>();
 

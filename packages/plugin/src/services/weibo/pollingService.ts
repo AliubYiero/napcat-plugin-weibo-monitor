@@ -9,12 +9,12 @@ import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import { WeiboCursorStore } from '../../store/WeiboCursorStore';
 import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
+import { resolvePollingState } from '../../weibo/pollingState';
 import {
     createPollSchedule,
     normalizePollIntervalMinutes,
     type PollSchedule,
 } from '../../weibo/pollSchedule';
-import { resolvePollingState } from '../../weibo/pollingState';
 import { findOwnerProfilePost } from '../../weibo/predicate';
 import {
     buildSeenBaseline,
@@ -62,6 +62,7 @@ class WeiboPollingService {
         this.started = false;
         weiboRuntime.running = false;
         weiboRuntime.nextPollAt = null;
+        weiboRuntime.recoveryPending = false;
         weiboRuntime.clearLastError();
         if (this.timer) {
             clearTimeout(this.timer);
@@ -142,7 +143,7 @@ class WeiboPollingService {
         this.inFlight = true;
 
         try {
-            await weiboCookieService.ensureFresh();
+            await weiboCookieService.ensureKeepAlive();
 
             const cookie = WeiboCookieStore.getInstance().getData();
             if (cookie.cookies.length === 0) {
@@ -152,10 +153,11 @@ class WeiboPollingService {
                 );
                 return;
             }
-            if (cookie.invalid) {
+            const wasInvalid = cookie.invalid;
+            if (cookie.invalid && !weiboRuntime.recoveryPending) {
                 weiboRuntime.clearLastError();
                 pluginState.logger.debug(
-                    '微博轮询跳过: Cookie 已失效, 等待更新',
+                    '微博轮询跳过: Cookie 已失效, 等待保活恢复或人工更新',
                 );
                 return;
             }
@@ -209,19 +211,29 @@ class WeiboPollingService {
 
                 if (outcome.ok) {
                     succeeded += 1;
+                    if (wasInvalid) {
+                        await weiboCookieService.markRecovered();
+                    }
                 } else if (outcome.message) {
                     failureMessage = outcome.message;
                 }
 
                 if (outcome.failure === 'invalid') {
                     terminalFailure = 'invalid';
-                    await weiboCookieService.markInvalidAndNotify();
+                    weiboRuntime.recoveryPending = false;
+                    await weiboCookieService.markInvalidAndNotify(
+                        outcome.message ?? undefined,
+                    );
                     break;
                 }
                 if (outcome.failure === 'risk') {
                     terminalFailure = 'risk';
+                    weiboRuntime.recoveryPending = false;
                     this.enterBackoff();
                     break;
+                }
+                if (!outcome.ok) {
+                    weiboRuntime.recoveryPending = false;
                 }
 
                 if (index < activeMonitors.length - 1) {

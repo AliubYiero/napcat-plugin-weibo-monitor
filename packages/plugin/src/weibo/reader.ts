@@ -117,6 +117,7 @@ export function classifyFailure(
     status: number,
     body: unknown,
 ): WeiboApiFailure {
+    if (status === 401) return 'invalid';
     if (status === 418 || status === 403) return 'risk';
 
     const response = body as { ok?: number; message?: string } | null;

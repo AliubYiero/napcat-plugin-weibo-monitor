@@ -227,11 +227,14 @@ export interface WeiboLongTextResponse {
     [key: string]: unknown;
 }
 
+/** 登录态探测结论 */
+export type LoginProbeResult = 'valid' | 'invalid' | 'inconclusive';
+
 /** Cookie 持久化 (数据文件 `weibo-cookie.json`) */
 export interface WeiboCookieData {
     /** Playwright storageState 的 cookies (origins 不参与微博接口) */
     cookies: StoredCookie[];
-    /** 最后一次保存/刷新时间 */
+    /** 最后一次保存/续期时间 (手动保存或保活写回) */
     lastRefreshAt: number | null;
     /** 最后一次接口调用成功时间 */
     lastSuccessAt: number | null;
@@ -239,8 +242,32 @@ export interface WeiboCookieData {
     lastValidatedAt: number | null;
     /** 是否被判定为失效 */
     invalid: boolean;
-    /** 最后一次失效告警时间 (24 小时冷却) */
+    /** 首次判定失效的时间, 用于告警展示持续时长 */
+    invalidSince: number | null;
+    /** 最后一次失效告警投递成功时间 (每日提醒) */
     invalidNotifiedAt: number | null;
+    /** 最后一次失效告警投递尝试时间 (失败短重试) */
+    invalidAlertAttemptAt: number | null;
+    /** 最后一次保活成功时间 */
+    lastKeepAliveAt: number | null;
+    /** 最后一次保活尝试时间 (含失败, 用于每日排期) */
+    lastKeepAliveAttemptAt: number | null;
+    /** 最后一次登录态探测时间 */
+    lastProbeAt: number | null;
+    /** 最后一次登录态探测结论 */
+    lastProbeResult: LoginProbeResult | null;
+    /** 最后一次登录态探测说明 */
+    lastProbeMessage: string | null;
+    /** 连续保活执行失败次数 */
+    keepAliveFailureCount: number;
+    /** 连续保活不确定次数 */
+    keepAliveInconclusiveCount: number;
+    /** 最后一次运行故障告警投递尝试时间 */
+    runtimeAlertAttemptAt: number | null;
+    /** 最后一次运行故障告警投递成功时间 (24 小时冷却) */
+    runtimeAlertedAt: number | null;
+    /** 最近一次运行故障恢复通知时间 */
+    runtimeRecoveryNotifiedAt: number | null;
 }
 
 /** 序列化后的 cookie (与 Playwright Cookie 同形) */
@@ -298,9 +325,18 @@ export interface WeiboCookieStatus {
     /** Cookie 名列表 (值永不出后端) */
     names: string[];
     invalid: boolean;
+    invalidSince: number | null;
     lastSuccessAt: number | null;
     lastValidatedAt: number | null;
     lastRefreshAt: number | null;
+    lastKeepAliveAt: number | null;
+    lastProbeAt: number | null;
+    lastProbeResult: LoginProbeResult | null;
+    lastProbeMessage: string | null;
+    invalidNotifiedAt: number | null;
+    keepAliveFailureCount: number;
+    keepAliveInconclusiveCount: number;
+    runtimeAlertedAt: number | null;
 }
 
 /** 浏览器状态 */

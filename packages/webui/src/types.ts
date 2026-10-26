@@ -61,14 +61,25 @@ export interface WeiboPollingStatus {
     lastErrorAt: number | null;
 }
 
+export type LoginProbeResult = 'valid' | 'invalid' | 'inconclusive';
+
 export interface WeiboCookieStatus {
     configured: boolean;
     /** Cookie 名列表 (值永不出后端) */
     names: string[];
     invalid: boolean;
+    invalidSince: number | null;
     lastSuccessAt: number | null;
     lastValidatedAt: number | null;
     lastRefreshAt: number | null;
+    lastKeepAliveAt: number | null;
+    lastProbeAt: number | null;
+    lastProbeResult: LoginProbeResult | null;
+    lastProbeMessage: string | null;
+    invalidNotifiedAt: number | null;
+    keepAliveFailureCount: number;
+    keepAliveInconclusiveCount: number;
+    runtimeAlertedAt: number | null;
 }
 
 export interface WeiboBrowserStatus {

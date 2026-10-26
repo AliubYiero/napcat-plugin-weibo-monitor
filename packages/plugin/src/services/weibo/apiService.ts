@@ -1,5 +1,8 @@
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
-import { createWeiboReader } from '../../weibo/reader';
+import {
+    type LoginProbeSession,
+    probeLoginState,
+} from '../../weibo/loginProbe';
 import type {
     LongTextResult,
     MyMblogResult,
@@ -8,7 +11,6 @@ import type {
     WeiboApiFailure,
 } from '../../weibo/reader';
 import { browserService } from '../browser/service';
-import type { WeiboBrowserSession } from './browserSession';
 import { weiboReader } from './readerService';
 
 export type {
@@ -78,50 +80,22 @@ export const weiboApiService = new WeiboApiService();
  * 本函数不写 Cookie 健康状态, 成功与否由调用方决定。
  */
 export async function validateCookieWithSession(
-    session: WeiboBrowserSession,
+    session: LoginProbeSession,
     uid?: string,
 ): Promise<{
     valid: boolean;
     message: string;
     failure: WeiboApiFailure;
 }> {
-    if (uid) {
-        const reader = createWeiboReader({
-            fetchApi: (urlPath) => session.fetchApi(urlPath),
-            renderHtml: (html) => session.renderHtml(html),
-        });
-        const result = await reader.fetchFirstPage(uid);
-        if (result.ok) {
-            return {
-                valid: true,
-                message: 'Cookie 可用',
-                failure: null,
-            };
-        }
-        return {
-            valid: false,
-            message: result.message || '微博接口暂不可用',
-            failure: result.failure,
-        };
-    }
-
-    const logged = await session.withPage(async (page) => {
-        return page.evaluate(() => {
-            const config = (
-                window as unknown as {
-                    $CONFIG?: { uid?: string | number };
-                }
-            ).$CONFIG;
-            const uid = config?.uid ? String(config.uid) : '';
-            return uid !== '' && uid !== '0';
-        });
-    });
-
-    return logged
-        ? { valid: true, message: 'Cookie 可用', failure: null }
-        : {
-              valid: false,
-              message: '未能识别登录态',
-              failure: 'invalid',
-          };
+    const outcome = await probeLoginState(session, uid);
+    return {
+        valid: outcome.result === 'valid',
+        message: outcome.message,
+        failure:
+            outcome.result === 'invalid'
+                ? 'invalid'
+                : outcome.result === 'inconclusive'
+                  ? 'risk'
+                  : null,
+    };
 }

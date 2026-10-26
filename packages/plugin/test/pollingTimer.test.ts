@@ -6,13 +6,21 @@
  * 即时拉取不挪动网格、固定延迟档从上轮结束起算。
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
 import { weiboRuntime } from '../src/services/weibo/runtimeStatus';
 
 const mocks = vi.hoisted(() => ({
     fetchMyMblog: vi.fn(),
-    ensureFresh: vi.fn(async () => {}),
+    ensureKeepAlive: vi.fn(async () => {}),
     markInvalidAndNotify: vi.fn(async () => {}),
+    markRecovered: vi.fn(async () => {}),
     pushPost: vi.fn(async () => {}),
     cursorGet: vi.fn(() => undefined),
     cursorSet: vi.fn(),
@@ -36,6 +44,10 @@ const mocks = vi.hoisted(() => ({
         error: vi.fn(),
     },
     timers: new Map<string, unknown>(),
+    cookie: {
+        cookies: [{ name: 'SUB', value: 'token' }],
+        invalid: false,
+    },
     monitor: {
         uid: '1234567890',
         screenName: '博主',
@@ -55,10 +67,7 @@ vi.mock('../src/core/state', () => ({
 vi.mock('../src/store/WeiboCookieStore', () => ({
     WeiboCookieStore: {
         getInstance: () => ({
-            getData: () => ({
-                cookies: [{ name: 'SUB', value: 'token' }],
-                invalid: false,
-            }),
+            getData: () => mocks.cookie,
         }),
     },
 }));
@@ -68,9 +77,7 @@ vi.mock('../src/store/WeiboMonitorStore', () => ({
         getInstance: () => ({
             list: () => [mocks.monitor],
             get: (uid: string) =>
-                uid === mocks.monitor.uid
-                    ? mocks.monitor
-                    : undefined,
+                uid === mocks.monitor.uid ? mocks.monitor : undefined,
             updateMeta: mocks.updateMeta,
         }),
     },
@@ -94,8 +101,9 @@ vi.mock('../src/services/sessionConfigService', () => ({
 
 vi.mock('../src/services/weibo/cookieService', () => ({
     weiboCookieService: {
-        ensureFresh: mocks.ensureFresh,
+        ensureKeepAlive: mocks.ensureKeepAlive,
         markInvalidAndNotify: mocks.markInvalidAndNotify,
+        markRecovered: mocks.markRecovered,
     },
 }));
 
@@ -145,6 +153,13 @@ beforeEach(() => {
     mocks.cursorSet.mockReset();
     mocks.cursorSetPaused.mockReset();
     mocks.updateMeta.mockReset();
+    mocks.cookie = {
+        cookies: [{ name: 'SUB', value: 'token' }],
+        invalid: false,
+    };
+    mocks.ensureKeepAlive.mockClear();
+    mocks.markInvalidAndNotify.mockClear();
+    mocks.markRecovered.mockClear();
     mocks.config.weiboPollIntervalMinutes = 60;
     mocks.timers.clear();
 
@@ -154,6 +169,7 @@ beforeEach(() => {
     weiboRuntime.backoffUntil = null;
     weiboRuntime.lastError = null;
     weiboRuntime.lastErrorAt = null;
+    weiboRuntime.recoveryPending = false;
 });
 
 afterEach(() => {
@@ -196,6 +212,41 @@ describe('轮询定时器接线', () => {
         expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(2);
         expect(weiboRuntime.backoffUntil).toBeNull();
         expect(nextPollAt()).toBe(at(22, 3, 0));
+    });
+
+    it('Cookie 失效且无待确认恢复时跳过本轮', async () => {
+        mocks.cookie.invalid = true;
+
+        await startAndSettle();
+
+        expect(mocks.fetchMyMblog).not.toHaveBeenCalled();
+        expect(mocks.markInvalidAndNotify).not.toHaveBeenCalled();
+    });
+
+    it('待确认恢复时允许轮询, 成功后解除失效', async () => {
+        mocks.cookie.invalid = true;
+        weiboRuntime.recoveryPending = true;
+
+        await startAndSettle();
+
+        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(1);
+        expect(mocks.markRecovered).toHaveBeenCalledTimes(1);
+    });
+
+    it('鉴权失败触发失效告警并中止本轮', async () => {
+        mocks.fetchMyMblog.mockResolvedValue({
+            ok: false,
+            posts: [],
+            message: '登录态已失效',
+            failure: 'invalid',
+        });
+
+        await startAndSettle();
+
+        expect(mocks.markInvalidAndNotify).toHaveBeenCalledWith(
+            '登录态已失效',
+        );
+        expect(weiboRuntime.recoveryPending).toBe(false);
     });
 
     it('配置变更重新分发计划器, 立即按新网格排期', async () => {

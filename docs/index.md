@@ -28,6 +28,8 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 | [adr/0006-cookie-validate-before-persist.md](./adr/0006-cookie-validate-before-persist.md) | Cookie 保存先校验候选, 通过才落盘 |
 | [adr/0007-session-gate-in-dispatch.md](./adr/0007-session-gate-in-dispatch.md) | 会话启用门禁从接收层下沉到分发层 |
 | [adr/0008-poll-alignment.md](./adr/0008-poll-alignment.md) | 轮询对齐到本地墙钟刻度 (整除 60 进网格, 其余固定延迟) |
+| [adr/0009-seen-id-cache-and-content-types.md](./adr/0009-seen-id-cache-and-content-types.md) | 已见缓存、内容类型开关与点赞/生日/置顶规则 |
+| [adr/0010-daily-cookie-keepalive.md](./adr/0010-daily-cookie-keepalive.md) | 每日 Cookie 保活与登录态探测 |
 
 判据与写法见 [development-pattern.md](./development-pattern.md) 的"架构决策记录 (ADR) 纪律"。
 

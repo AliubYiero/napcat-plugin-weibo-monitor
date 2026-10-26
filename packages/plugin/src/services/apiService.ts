@@ -274,6 +274,22 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
         }
     });
 
+    /** 立即执行一次完整保活, 成功后写回并补拉一轮 */
+    router.postNoAuth('/weibo/cookie/keepalive', async (_req, res) => {
+        try {
+            const result = await weiboCookieService.keepAlive({
+                manual: true,
+            });
+            if (result.valid) {
+                weiboPollingService.requestImmediate();
+            }
+            res.json({ code: 0, data: result });
+        } catch (err) {
+            ctx.logger.error('微博 Cookie 保活失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
     /** 清除 Cookie */
     router.deleteNoAuth('/weibo/cookie', async (_req, res) => {
         try {
@@ -635,9 +651,19 @@ function buildWeiboStatus(): Record<string, unknown> {
             configured: cookie.cookies.length > 0,
             names: cookie.cookies.map((item) => item.name),
             invalid: cookie.invalid,
+            invalidSince: cookie.invalidSince,
             lastSuccessAt: cookie.lastSuccessAt,
             lastValidatedAt: cookie.lastValidatedAt,
             lastRefreshAt: cookie.lastRefreshAt,
+            lastKeepAliveAt: cookie.lastKeepAliveAt,
+            lastProbeAt: cookie.lastProbeAt,
+            lastProbeResult: cookie.lastProbeResult,
+            lastProbeMessage: cookie.lastProbeMessage,
+            invalidNotifiedAt: cookie.invalidNotifiedAt,
+            keepAliveFailureCount: cookie.keepAliveFailureCount,
+            keepAliveInconclusiveCount:
+                cookie.keepAliveInconclusiveCount,
+            runtimeAlertedAt: cookie.runtimeAlertedAt,
         },
         browser: getBrowserStatus(),
         subscriptions: monitors.length,
