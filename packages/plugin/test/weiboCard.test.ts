@@ -325,6 +325,77 @@ describe('buildPostCardHtml', () => {
         expect(html).not.toContain('class="link-card"');
     });
 
+    it('站内摘要卡渲染为横向卡并展示简介', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                type: '0',
+                object_type: 'ai_summary',
+                page_title: '超凡蜘蛛侠3',
+                page_desc:
+                    '据最新消息，安德鲁·加菲尔德已与漫威签下一份新协议。',
+                page_url:
+                    'https://m.s.weibo.com/applink/go2?noclose=1&url=sinaweibo%3A%2F%2Fsearchall',
+                page_pic:
+                    'https://wx2.sinaimg.cn/middle/cover.jpg',
+            },
+        });
+        expect(html).toContain('class="link-card"');
+        expect(html).toContain('class="link-desc"');
+        expect(html).toContain('超凡蜘蛛侠3');
+        expect(html).toContain('安德鲁·加菲尔德');
+        expect(html).not.toContain('m.s.weibo.com');
+    });
+
+    it('站内卡缺少 page_desc 时用 content2 作为简介', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                object_type: 'ai_summary',
+                content1: '超凡蜘蛛侠3',
+                content2: '据最新消息，续集已经立项。',
+                page_url:
+                    'https://m.s.weibo.com/applink/go2?noclose=1',
+                page_pic:
+                    'https://wx2.sinaimg.cn/middle/cover.jpg',
+            },
+        });
+        expect(html).toContain('class="link-desc"');
+        expect(html).toContain('续集已经立项');
+    });
+
+    it('站内无简介的 page_info 仍不渲染为横向卡', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                page_title: '金阁寺烧了吗 的微博',
+                page_url:
+                    'https://m.weibo.cn/detail/5355138546142994',
+                page_pic: 'https://wx4.sinaimg.cn/cover.jpg',
+            },
+        });
+        expect(html).not.toContain('class="link-card"');
+    });
+
+    it('站内简介中的 HTML 与特殊字符被转义', () => {
+        const html = buildPostCardHtml({
+            ...POST,
+            text: '',
+            page_info: {
+                page_title: '标题',
+                page_desc: '简介 <b>加粗</b> & 符号',
+                page_url: 'https://m.s.weibo.com/applink/go2',
+                page_pic:
+                    'https://wx2.sinaimg.cn/middle/cover.jpg',
+            },
+        });
+        expect(html).toContain('简介 加粗 &amp; 符号');
+        expect(html).not.toContain('<b>');
+    });
+
     it('视频块不渲染标题, 输出遮罩与播放信息', () => {
         const html = buildPostCardHtml({
             ...POST,

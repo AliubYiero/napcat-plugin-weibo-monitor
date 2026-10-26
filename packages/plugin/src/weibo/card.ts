@@ -382,6 +382,11 @@ export function buildPostCardHtml(
         margin-top: 6px; font-size: 12px; line-height: 1.4;
         color: #8a8f99;
     }
+    .link-desc {
+        display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2; margin-top: 6px; font-size: 13px;
+        line-height: 1.4; color: #8a8f99; word-break: break-word;
+    }
     .retweet .video, .retweet .link-card { margin-top: 10px; }
     .retweet .link-card { background: #ffffff; }
 </style>
@@ -514,13 +519,21 @@ function renderLinkCard(page: WeiboPageInfo): string {
     if (!cover || !title) return '';
 
     const href = resolvePageHref(page);
-    if (!href || isWeiboInternalUrl(href)) return '';
+    if (!href) return '';
+
+    const internal = isWeiboInternalUrl(href);
+    const description = internal ? pageDescription(page) : '';
+    if (internal && !description) return '';
+
+    const detail = description
+        ? `<div class="link-desc">${escapeHtml(description)}</div>`
+        : `<div class="link-source">${escapeHtml(pageSourceLabel(href))}</div>`;
 
     return `<div class="link-card">
         <img class="link-cover" src="${escapeHtml(cover)}" alt="" loading="eager" />
         <div class="link-body">
             <div class="link-title">${escapeHtml(title)}</div>
-            <div class="link-source">${escapeHtml(pageSourceLabel(href))}</div>
+            ${detail}
         </div>
     </div>`;
 }
@@ -549,12 +562,29 @@ function pageTitle(page: WeiboPageInfo): string {
     for (const value of [
         page.title,
         page.content1,
-        page.content2,
         page.page_title,
+        page.content2,
     ]) {
         if (typeof value === 'string' && value.trim()) {
             return value.trim();
         }
+    }
+    return '';
+}
+
+/**
+ * 页面简介: 优先 `page_desc`, 回退 `content2`。
+ *
+ * 站内摘要卡的 `content2` 与标题可能同值 (列表接口只给一份文案),
+ * 此时视为无简介, 避免右侧重复展示标题。
+ */
+function pageDescription(page: WeiboPageInfo): string {
+    const title = htmlToText(pageTitle(page));
+    for (const value of [page.page_desc, page.content2]) {
+        if (typeof value !== 'string') continue;
+        const text = htmlToText(value);
+        if (!text || text === title) continue;
+        return text;
     }
     return '';
 }

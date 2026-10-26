@@ -119,6 +119,7 @@ export interface WeiboPageInfo {
     content1?: string;
     content2?: string;
     page_title?: string;
+    page_desc?: string;
     page_url?: string;
     page_pic?: string | { url?: string };
     /** 播放量成品文案, 如「3万次播放」 */
