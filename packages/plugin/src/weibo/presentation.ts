@@ -163,15 +163,25 @@ export function buildImagePresentation(
         href ? `${header}\n${href}` : header,
     );
     pushImage(segments, cardImage);
-
-    // 卡片已经包含原动态内容 (点赞) 或生日封面, 不再追加消息段
-    if (kind === 'like' || kind === 'birthday') {
-        return segments;
-    }
-    for (const url of pickAttachedImages(post, false)) {
-        pushImage(segments, url);
-    }
     return segments;
+}
+
+/**
+ * 图片模式下单独发送的附图 (仅本条微博, 不含转发原动态)。
+ *
+ * 卡片已经展示本条附图, 此消息用于补充原图; 点赞 / 生日动态只有卡片,
+ * 不产生附图消息。
+ */
+export function buildAttachmentPresentation(
+    post: WeiboPost,
+    options: PresentationOptions = {},
+): PresentationImage[] {
+    const kind = options.context?.kind ?? resolvePostKind(post);
+    if (kind === 'like' || kind === 'birthday') return [];
+    return pickAttachedImages(post, false).map((url) => ({
+        type: 'image',
+        url,
+    }));
 }
 
 export function buildPlainText(

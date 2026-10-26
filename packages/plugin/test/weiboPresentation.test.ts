@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    buildAttachmentPresentation,
     buildImagePresentation,
     buildPlainText,
     buildPushHeader,
@@ -333,7 +334,7 @@ describe('buildTextPresentation', () => {
 });
 
 describe('buildImagePresentation', () => {
-    it('图片模式: 标题行 + 链接 + 整卡 + 转发者附图', () => {
+    it('图片模式: 标题行 + 链接 + 整卡, 附图不并入本条', () => {
         const segments = buildImagePresentation(
             {
                 ...POST,
@@ -365,10 +366,7 @@ describe('buildImagePresentation', () => {
                 'https://weibo.com/123/M1',
             ].join('\n'),
         );
-        expect(imagesOf(segments)).toEqual([
-            'base64://card',
-            'https://wx1.sinaimg.cn/a.jpg',
-        ]);
+        expect(imagesOf(segments)).toEqual(['base64://card']);
     });
 
     it('卡片渲染失败时回退文本并补齐原动态附图', () => {
@@ -393,6 +391,54 @@ describe('buildImagePresentation', () => {
         expect(imagesOf(segments)).toEqual([
             'https://wx1.sinaimg.cn/r.jpg',
         ]);
+    });
+});
+
+describe('buildAttachmentPresentation', () => {
+    it('只返回本条微博附图, 不含转发原动态附图', () => {
+        const segments = buildAttachmentPresentation({
+            ...POST,
+            pic_ids: ['a'],
+            pic_infos: {
+                a: {
+                    large: { url: 'https://wx1.sinaimg.cn/a.jpg' },
+                },
+            },
+            retweeted_status: {
+                ...RETWEET,
+                pic_ids: ['r'],
+                pic_infos: {
+                    r: {
+                        large: { url: 'https://wx1.sinaimg.cn/r.jpg' },
+                    },
+                },
+            },
+        });
+        expect(imagesOf(segments)).toEqual([
+            'https://wx1.sinaimg.cn/a.jpg',
+        ]);
+    });
+
+    it('无附图时返回空数组', () => {
+        expect(buildAttachmentPresentation(POST)).toEqual([]);
+    });
+
+    it('点赞与生日动态不产生附图消息', () => {
+        const post = {
+            ...POST,
+            pic_ids: ['a'],
+            pic_infos: {
+                a: {
+                    large: { url: 'https://wx1.sinaimg.cn/a.jpg' },
+                },
+            },
+        };
+        expect(
+            buildAttachmentPresentation(post, LIKE_OPTIONS),
+        ).toEqual([]);
+        expect(
+            buildAttachmentPresentation(post, BIRTHDAY_OPTIONS),
+        ).toEqual([]);
     });
 });
 

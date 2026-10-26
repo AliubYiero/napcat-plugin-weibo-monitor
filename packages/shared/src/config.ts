@@ -353,7 +353,7 @@ export const FIELDS = [
         kind: 'select',
         label: '推送呈现方式',
         description:
-            '图片推送沿用整卡; 文本推送发送标题行、原文链接与正文',
+            '图片推送分两条: 标题行 + 整卡, 附图另发; 文本推送单条发送标题行、原文链接、正文与附图',
         scope: 'webui',
         options: PUSH_RENDER_MODE_OPTIONS,
         default: 'image',
