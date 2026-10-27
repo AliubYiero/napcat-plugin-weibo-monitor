@@ -73,7 +73,10 @@ describe('groupFields section 分隔语义', () => {
     it('display 跟随当前组, 不单独成组也不打断分组', () => {
         expect(
             keys([admin, display, section('示例字段'), booleanField]),
-        ).toEqual([['adminUsers', null], ['weiboPollIntervalMinutes']]);
+        ).toEqual([
+            ['adminUsers', null],
+            ['weiboPollIntervalMinutes'],
+        ]);
     });
 
     it('section 的 description 透传给分组', () => {

@@ -8,10 +8,10 @@
 
 import type { WeiboContentType } from 'shared';
 import {
+    type ClassifiedPost,
     classifyPost,
     getPostEventKey,
     isContentEnabled,
-    type ClassifiedPost,
 } from './predicate';
 import { parseWeiboTimeMs } from './time';
 import type { WeiboCursor, WeiboPost } from './types';
@@ -123,9 +123,7 @@ export function migrateLegacyLikeKeys(
     const seen = new Set<string>();
     for (const key of previous) {
         const legacy = LEGACY_LIKE_KEY_RE.exec(key);
-        const next = legacy
-            ? (resolved.get(legacy[1]) ?? key)
-            : key;
+        const next = legacy ? (resolved.get(legacy[1]) ?? key) : key;
         if (!next || seen.has(next)) continue;
         seen.add(next);
         migrated.push(next);
@@ -143,7 +141,10 @@ export function migrateLegacyLikeKeys(
 export function resolveSeenCache(
     posts: readonly WeiboPost[],
     uid: string,
-    cursor: Pick<WeiboCursor, 'seenIds' | 'initialized' | 'watermark'>,
+    cursor: Pick<
+        WeiboCursor,
+        'seenIds' | 'initialized' | 'watermark'
+    >,
     enabled: readonly WeiboContentType[],
     now: number = Date.now(),
 ): SeenCacheResult {

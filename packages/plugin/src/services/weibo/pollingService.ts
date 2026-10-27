@@ -384,7 +384,9 @@ class WeiboPollingService {
             return { ok: true, failure: null, message: null };
         }
 
-        const context = (item: (typeof selection.pinned)[number]) => ({
+        const context = (
+            item: (typeof selection.pinned)[number],
+        ) => ({
             kind: item.kind,
             likeDay: item.likeDay,
             likeClock: item.likeClock,

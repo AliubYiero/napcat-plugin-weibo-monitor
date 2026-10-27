@@ -93,11 +93,7 @@ describe('sanitizeConfig: 多选 (推送内容类型)', () => {
     it('过滤非法值并保留合法子集', () => {
         expect(
             sanitizeConfig({
-                weiboPushContentTypes: [
-                    'like',
-                    'bogus',
-                    'birthday',
-                ],
+                weiboPushContentTypes: ['like', 'bogus', 'birthday'],
             }).weiboPushContentTypes,
         ).toEqual(['like', 'birthday']);
     });

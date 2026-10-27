@@ -71,7 +71,9 @@ export default function SubscriptionsTab({
         <section className="card overflow-hidden animate-fade-in-up">
             <div className="p-5 pb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h2 className="font-semibold text-sm">订阅列表</h2>
+                    <h2 className="font-semibold text-sm">
+                        订阅列表
+                    </h2>
                     <p className="text-xs text-gray-400 mt-0.5">
                         共 {subscriptions.length} 个博主
                         {keyword.trim() &&
@@ -135,7 +137,8 @@ export default function SubscriptionsTab({
                     <span className="flex-1">
                         将移除 @{pending.screenName} 在
                         {sessionTypeLabel(pending.target.type)}{' '}
-                        {pending.target.id} 的订阅；重新订阅不会补发期间动态。
+                        {pending.target.id}{' '}
+                        的订阅；重新订阅不会补发期间动态。
                     </span>
                     <button
                         type="button"
@@ -237,10 +240,7 @@ export default function SubscriptionsTab({
                                                             key={`${target.type}:${target.id}`}
                                                             className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500"
                                                         >
-                                                            {
-                                                                name
-                                                            }{' '}
-                                                            (
+                                                            {name} (
                                                             {
                                                                 target.id
                                                             }

@@ -330,6 +330,8 @@ class WeiboReaderImpl implements WeiboReader {
     }
 }
 
-export function createWeiboReader(deps: WeiboReaderDeps): WeiboReader {
+export function createWeiboReader(
+    deps: WeiboReaderDeps,
+): WeiboReader {
     return new WeiboReaderImpl(deps);
 }

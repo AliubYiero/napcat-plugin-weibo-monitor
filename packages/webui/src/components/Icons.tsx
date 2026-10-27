@@ -297,7 +297,10 @@ export function IconX({ size, className }: IconProps = defaultProps) {
 }
 
 /** 加号/新增 */
-export function IconPlus({ size, className }: IconProps = defaultProps) {
+export function IconPlus({
+    size,
+    className,
+}: IconProps = defaultProps) {
     return (
         <svg
             aria-hidden="true"

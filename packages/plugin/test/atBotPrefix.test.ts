@@ -90,9 +90,9 @@ describe('resolveTriggerCommand', () => {
         expect(
             resolveTriggerCommand('#weibo ping', SELF, ['prefix']),
         ).toBe(' ping');
-        expect(resolveTriggerCommand('#weibo', SELF, ['prefix'])).toBe(
-            '',
-        );
+        expect(
+            resolveTriggerCommand('#weibo', SELF, ['prefix']),
+        ).toBe('');
     });
 
     it('prefix: 带 @机器人 的普通前缀消息不命中 (不以指令前缀开头)', () => {
@@ -170,7 +170,9 @@ describe('resolveTriggerCommand', () => {
 
     it('整体 trim 后再判定', () => {
         expect(
-            resolveTriggerCommand('  #weibo ping  ', SELF, ['prefix']),
+            resolveTriggerCommand('  #weibo ping  ', SELF, [
+                'prefix',
+            ]),
         ).toBe(' ping');
     });
 });

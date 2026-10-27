@@ -72,7 +72,9 @@ export function isRepostPost(post: WeiboPost): boolean {
  * 点赞条目的原动态本身可能也是转发, 卡片需要把转发块落到最深一层。
  * 只有 id 没有正文时返回 undefined, 由调用方渲染「原微博已删除」。
  */
-export function resolveRootRetweet(post: WeiboPost): WeiboPost | undefined {
+export function resolveRootRetweet(
+    post: WeiboPost,
+): WeiboPost | undefined {
     let current = post.retweeted_status ?? undefined;
     const seen = new Set<WeiboPost>();
     while (current?.retweeted_status) {
@@ -128,11 +130,7 @@ export function parseLikeMoment(
         const offset = RELATIVE_DAY_OFFSET[relative[1]];
         const shifted = shiftDay(beijingDateParts(now), offset);
         return {
-            day: formatDay(
-                shifted.year,
-                shifted.month,
-                shifted.day,
-            ),
+            day: formatDay(shifted.year, shifted.month, shifted.day),
             clock: parseClock(relative[2], relative[3]),
         };
     }
@@ -210,7 +208,8 @@ function hasLikeInsertFlag(raw: unknown): boolean {
 }
 
 function walkLikeFlag(value: unknown, depth: number): boolean {
-    if (depth > 4 || !value || typeof value !== 'object') return false;
+    if (depth > 4 || !value || typeof value !== 'object')
+        return false;
     if (Array.isArray(value)) {
         return value.some((item) => walkLikeFlag(item, depth + 1));
     }
@@ -266,7 +265,11 @@ function parseClock(
     return `${pad(hour)}:${pad(minute)}`;
 }
 
-function isValidDay(year: number, month: number, day: number): boolean {
+function isValidDay(
+    year: number,
+    month: number,
+    day: number,
+): boolean {
     if (month < 1 || month > 12 || day < 1) return false;
     const daysInMonth = new Date(
         Date.UTC(year, month, 0),
@@ -275,11 +278,9 @@ function isValidDay(year: number, month: number, day: number): boolean {
 }
 
 function formatDay(year: number, month: number, day: number): string {
-    return [
-        String(year).padStart(4, '0'),
-        pad(month),
-        pad(day),
-    ].join('-');
+    return [String(year).padStart(4, '0'), pad(month), pad(day)].join(
+        '-',
+    );
 }
 
 function pad(value: number): string {

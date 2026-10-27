@@ -282,10 +282,14 @@ class WeiboCookieService {
      */
     async markInvalidAndNotify(signal?: string): Promise<void> {
         this.store.markInvalid();
-        if (!this.store.canNotifyInvalid(INVALID_NOTIFY_COOLDOWN_MS)) {
+        if (
+            !this.store.canNotifyInvalid(INVALID_NOTIFY_COOLDOWN_MS)
+        ) {
             return;
         }
-        if (!this.store.canAttemptInvalidAlert(ALERT_ATTEMPT_RETRY_MS)) {
+        if (
+            !this.store.canAttemptInvalidAlert(ALERT_ATTEMPT_RETRY_MS)
+        ) {
             return;
         }
 
@@ -375,7 +379,9 @@ class WeiboCookieService {
         if (!this.store.canNotifyRuntime(RUNTIME_ALERT_COOLDOWN_MS)) {
             return;
         }
-        if (!this.store.canAttemptRuntimeAlert(ALERT_ATTEMPT_RETRY_MS)) {
+        if (
+            !this.store.canAttemptRuntimeAlert(ALERT_ATTEMPT_RETRY_MS)
+        ) {
             return;
         }
 

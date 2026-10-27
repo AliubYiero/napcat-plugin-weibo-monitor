@@ -17,10 +17,7 @@ import {
     parseLikeMoment,
     resolvePostKind,
 } from './postKind';
-import type {
-    WeiboPost,
-    WeiboPostKind,
-} from './types';
+import type { WeiboPost, WeiboPostKind } from './types';
 
 /** 分类后的动态 (渲染与去重都从这里取上下文) */
 export interface ClassifiedPost {

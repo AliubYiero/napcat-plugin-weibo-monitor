@@ -409,7 +409,9 @@ describe('buildAttachmentPresentation', () => {
                 pic_ids: ['r'],
                 pic_infos: {
                     r: {
-                        large: { url: 'https://wx1.sinaimg.cn/r.jpg' },
+                        large: {
+                            url: 'https://wx1.sinaimg.cn/r.jpg',
+                        },
                     },
                 },
             },
@@ -533,7 +535,9 @@ describe('点赞动态', () => {
         expect(buildPushHeader(LIKE, LIKE_OPTIONS)).toBe(
             '[2026/10/26 08:00:00] 「博主」点赞了微博',
         );
-        expect(textOf(buildTextPresentation(LIKE, LIKE_OPTIONS))).toBe(
+        expect(
+            textOf(buildTextPresentation(LIKE, LIKE_OPTIONS)),
+        ).toBe(
             [
                 '[2026/10/26 08:00:00] 「博主」点赞了微博',
                 '',

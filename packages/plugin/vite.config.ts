@@ -1,6 +1,5 @@
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
-import { builtinModules } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodeResolve from '@rollup/plugin-node-resolve';
@@ -16,7 +15,11 @@ const nodeModules = [
     ...builtinModules.map((m) => `node:${m}`),
 ].flat();
 
-const external: string[] = ['bufferutil', 'utf-8-validate', 'kerberos'];
+const external: string[] = [
+    'bufferutil',
+    'utf-8-validate',
+    'kerberos',
+];
 
 const INSPECTOR_STUB = `
 const loadInspector = () => require('inspector');
@@ -31,7 +34,8 @@ export default {
 `;
 
 const STUB_MODULES: Record<string, string> = {
-    'chromium-bidi/lib/cjs/bidiMapper/BidiMapper': 'export default {};',
+    'chromium-bidi/lib/cjs/bidiMapper/BidiMapper':
+        'export default {};',
     'chromium-bidi/lib/cjs/cdp/CdpConnection': 'export default {};',
     electron: 'export default {};',
     'electron/index.js': 'export default {};',

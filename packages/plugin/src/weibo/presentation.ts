@@ -158,10 +158,7 @@ export function buildImagePresentation(
               ? ''
               : buildPostUrl(post);
     const header = buildPushHeader(post, options);
-    pushText(
-        segments,
-        href ? `${header}\n${href}` : header,
-    );
+    pushText(segments, href ? `${header}\n${href}` : header);
     pushImage(segments, cardImage);
     return segments;
 }
@@ -223,7 +220,9 @@ function buildLikeText(
 
     pushText(segments, buildOriginalHeader(target));
 
-    const content = buildRichText(target.text ?? target.text_raw ?? '');
+    const content = buildRichText(
+        target.text ?? target.text_raw ?? '',
+    );
     if (content.length > 0) {
         pushText(segments, '\n');
         appendSegments(segments, content);

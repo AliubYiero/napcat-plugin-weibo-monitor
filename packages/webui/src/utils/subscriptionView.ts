@@ -22,7 +22,10 @@ export function buildSessionNameMap(
     const map = new Map<string, string>();
     for (const session of sessions) {
         if (session.name) {
-            map.set(sessionKey(session.type, session.id), session.name);
+            map.set(
+                sessionKey(session.type, session.id),
+                session.name,
+            );
         }
     }
     return map;
@@ -107,16 +110,13 @@ export function isValidLimitValue(
     min: number,
     max: number,
 ): boolean {
-    return (
-        Number.isInteger(value) && value >= min && value <= max
-    );
+    return Number.isInteger(value) && value >= min && value <= max;
 }
 
 /** 按会话名排序 (无名称时回退号码), 稳定且与界面语言一致 */
-export function sortSessionRows<T extends { type: SessionType; id: string }>(
-    rows: T[],
-    names: Map<string, string>,
-): T[] {
+export function sortSessionRows<
+    T extends { type: SessionType; id: string },
+>(rows: T[], names: Map<string, string>): T[] {
     return [...rows].sort((left, right) => {
         const nameLeft =
             sessionNameOf(names, left.type, left.id) || left.id;

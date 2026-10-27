@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-    SessionInfo,
-    WeiboSubscription,
-} from '../../src/types';
+import type { SessionInfo, WeiboSubscription } from '../../src/types';
 import {
     buildSessionNameMap,
     filterSubscriptions,

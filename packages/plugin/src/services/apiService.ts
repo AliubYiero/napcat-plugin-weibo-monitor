@@ -116,7 +116,8 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     /** 获取会话列表（群 + 好友，附带各会话启用状态） */
     router.getNoAuth('/sessions', async (_req, res) => {
         try {
-            const { groups, friends } = await fetchNapCatSessions(ctx);
+            const { groups, friends } =
+                await fetchNapCatSessions(ctx);
 
             const groupSessions = groups.map((group) => {
                 const id = String(group.group_id);
@@ -275,20 +276,26 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     /** 立即执行一次完整保活, 成功后写回并补拉一轮 */
-    router.postNoAuth('/weibo/cookie/keepalive', async (_req, res) => {
-        try {
-            const result = await weiboCookieService.keepAlive({
-                manual: true,
-            });
-            if (result.valid) {
-                weiboPollingService.requestImmediate();
+    router.postNoAuth(
+        '/weibo/cookie/keepalive',
+        async (_req, res) => {
+            try {
+                const result = await weiboCookieService.keepAlive({
+                    manual: true,
+                });
+                if (result.valid) {
+                    weiboPollingService.requestImmediate();
+                }
+                res.json({ code: 0, data: result });
+            } catch (err) {
+                ctx.logger.error('微博 Cookie 保活失败:', err);
+                res.status(500).json({
+                    code: -1,
+                    message: String(err),
+                });
             }
-            res.json({ code: 0, data: result });
-        } catch (err) {
-            ctx.logger.error('微博 Cookie 保活失败:', err);
-            res.status(500).json({ code: -1, message: String(err) });
-        }
-    });
+        },
+    );
 
     /** 清除 Cookie */
     router.deleteNoAuth('/weibo/cookie', async (_req, res) => {
@@ -369,87 +376,95 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     /** 新增订阅 (可多目标; 逐目标结果, 成功项保留) */
-    router.postNoAuth('/weibo/subscriptions/add', async (req, res) => {
-        try {
-            const body = req.body as
-                | { uid?: unknown; targets?: unknown }
-                | undefined;
-            if (
-                !body ||
-                typeof body.uid !== 'string' ||
-                !Array.isArray(body.targets)
-            ) {
-                return res
-                    .status(400)
-                    .json({ code: -1, message: '参数错误' });
-            }
-
-            const targets: WeiboSubscriptionTargetInput[] = [];
-            for (const raw of body.targets) {
-                if (!raw || typeof raw !== 'object') {
-                    return res
-                        .status(400)
-                        .json({ code: -1, message: '参数错误' });
-                }
-                const item = raw as {
-                    type?: unknown;
-                    id?: unknown;
-                };
+    router.postNoAuth(
+        '/weibo/subscriptions/add',
+        async (req, res) => {
+            try {
+                const body = req.body as
+                    | { uid?: unknown; targets?: unknown }
+                    | undefined;
                 if (
-                    !isSessionType(item.type) ||
-                    typeof item.id !== 'string' ||
-                    !item.id
+                    !body ||
+                    typeof body.uid !== 'string' ||
+                    !Array.isArray(body.targets)
                 ) {
                     return res
                         .status(400)
                         .json({ code: -1, message: '参数错误' });
                 }
-                targets.push({ type: item.type, id: item.id });
-            }
 
-            if (targets.length === 0) {
-                return res.status(400).json({
+                const targets: WeiboSubscriptionTargetInput[] = [];
+                for (const raw of body.targets) {
+                    if (!raw || typeof raw !== 'object') {
+                        return res
+                            .status(400)
+                            .json({ code: -1, message: '参数错误' });
+                    }
+                    const item = raw as {
+                        type?: unknown;
+                        id?: unknown;
+                    };
+                    if (
+                        !isSessionType(item.type) ||
+                        typeof item.id !== 'string' ||
+                        !item.id
+                    ) {
+                        return res
+                            .status(400)
+                            .json({ code: -1, message: '参数错误' });
+                    }
+                    targets.push({ type: item.type, id: item.id });
+                }
+
+                if (targets.length === 0) {
+                    return res.status(400).json({
+                        code: -1,
+                        message: '请至少选择一个推送会话',
+                    });
+                }
+
+                const outcome = await weiboMonitorService.addMany(
+                    body.uid,
+                    targets,
+                );
+                if (outcome.results.some((item) => item.ok)) {
+                    weiboPollingService.requestImmediate();
+                }
+
+                res.json({
+                    code: 0,
+                    data: {
+                        uid: outcome.uid,
+                        screenName: outcome.screenName,
+                        results: outcome.results,
+                    },
+                });
+            } catch (err) {
+                ctx.logger.error('新增微博订阅失败:', err);
+                res.status(500).json({
                     code: -1,
-                    message: '请至少选择一个推送会话',
+                    message: String(err),
                 });
             }
-
-            const outcome = await weiboMonitorService.addMany(
-                body.uid,
-                targets,
-            );
-            if (outcome.results.some((item) => item.ok)) {
-                weiboPollingService.requestImmediate();
-            }
-
-            res.json({
-                code: 0,
-                data: {
-                    uid: outcome.uid,
-                    screenName: outcome.screenName,
-                    results: outcome.results,
-                },
-            });
-        } catch (err) {
-            ctx.logger.error('新增微博订阅失败:', err);
-            res.status(500).json({ code: -1, message: String(err) });
-        }
-    });
+        },
+    );
 
     /** 全部现有会话的订阅上限 */
     router.getNoAuth('/weibo/limits', async (_req, res) => {
         try {
-            const { groups, friends } = await fetchNapCatSessions(ctx);
+            const { groups, friends } =
+                await fetchNapCatSessions(ctx);
             const sessions = [
                 ...groups.map((group) => {
                     const id = String(group.group_id);
                     return {
                         type: 'group' as const,
                         id,
-                        enabled: sessionConfigService.isSessionEnabled(
-                            id,
-                            'group',
-                        ),
+                        enabled:
+                            sessionConfigService.isSessionEnabled(
+                                id,
+                                'group',
+                            ),
                     };
                 }),
                 ...friends.map((friend) => {
@@ -457,10 +472,11 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
                     return {
                         type: 'private' as const,
                         id,
-                        enabled: sessionConfigService.isSessionEnabled(
-                            id,
-                            'private',
-                        ),
+                        enabled:
+                            sessionConfigService.isSessionEnabled(
+                                id,
+                                'private',
+                            ),
                     };
                 }),
             ];
@@ -521,7 +537,8 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
         } catch (err) {
             res.status(400).json({
                 code: -1,
-                message: err instanceof Error ? err.message : String(err),
+                message:
+                    err instanceof Error ? err.message : String(err),
             });
         }
     });
@@ -538,9 +555,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
 
         try {
             weiboLimitService.clear({ type, id });
-            ctx.logger.info(
-                `WebUI 恢复默认订阅上限: ${type}:${id}`,
-            );
+            ctx.logger.info(`WebUI 恢复默认订阅上限: ${type}:${id}`);
             res.json({
                 code: 0,
                 data: {

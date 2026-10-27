@@ -47,7 +47,9 @@ describe('normalizePollIntervalMinutes', () => {
 
 describe('createPollSchedule: 模式选择', () => {
     it('能整除 60 的间隔走刻度网格', () => {
-        for (const minutes of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]) {
+        for (const minutes of [
+            1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60,
+        ]) {
             expect(createPollSchedule(minutes).kind).toBe('grid');
         }
     });

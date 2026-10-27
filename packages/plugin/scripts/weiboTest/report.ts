@@ -2,15 +2,12 @@ import type { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { WeiboContentType } from 'shared';
+import { isAdPost, resolvePostKind } from '../../src/weibo/postKind';
+import { getPostId, getUserUid } from '../../src/weibo/predicate';
 import type {
     PostEvent,
     PresentationSegment,
 } from '../../src/weibo/presentation';
-import { getPostId, getUserUid } from '../../src/weibo/predicate';
-import {
-    isAdPost,
-    resolvePostKind,
-} from '../../src/weibo/postKind';
 import { escapeHtml } from '../../src/weibo/sanitize';
 import type { WeiboPost } from '../../src/weibo/types';
 

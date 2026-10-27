@@ -12,11 +12,11 @@ import {
     needsLongText,
     resolveLongTextId,
 } from '../../src/weibo/longText';
-import { getPostId } from '../../src/weibo/predicate';
 import {
     parseLikeMoment,
     resolvePostKind,
 } from '../../src/weibo/postKind';
+import { getPostId } from '../../src/weibo/predicate';
 import {
     buildTextPresentation,
     resolvePostEvent,
@@ -26,13 +26,13 @@ import { parseCookieHeader } from '../../src/weibo/sanitize';
 import type { WeiboPost } from '../../src/weibo/types';
 import { loadWeiboTestEnv } from './env';
 import {
+    type AttachmentReport,
     buildIndexHtml,
     explainQualified,
-    materializeText,
-    postFileBase,
-    type AttachmentReport,
     type LongTextStatus,
+    materializeText,
     type PostReport,
+    postFileBase,
     type RunManifest,
     writeBinaryFile,
     writeJsonFile,
@@ -57,11 +57,7 @@ async function main(): Promise<void> {
         );
     }
 
-    const outputDir = path.join(
-        OUTPUT_ROOT,
-        env.uid,
-        timestamp(),
-    );
+    const outputDir = path.join(OUTPUT_ROOT, env.uid, timestamp());
     const imagesDir = path.join(outputDir, 'images');
     fs.mkdirSync(imagesDir, { recursive: true });
 
@@ -97,8 +93,8 @@ async function main(): Promise<void> {
         writeJsonFile(outputDir, 'posts.raw.json', firstPage.posts);
         const screenName =
             profile.user?.screen_name ??
-            firstPage.posts.find((post) => post.user?.screen_name)?.user
-                ?.screen_name ??
+            firstPage.posts.find((post) => post.user?.screen_name)
+                ?.user?.screen_name ??
             `UID ${env.uid}`;
         const userAgent = buildUserAgent(
             session.getVersion() ?? '120.0.0.0',
@@ -279,7 +275,8 @@ async function hydrateAndResolveStatus(
     if (hydrated === needed.length) {
         return { post: hydratedPost, status: 'hydrated' };
     }
-    if (hydrated > 0) return { post: hydratedPost, status: 'partial' };
+    if (hydrated > 0)
+        return { post: hydratedPost, status: 'partial' };
     if (missing === needed.length) {
         return { post: hydratedPost, status: 'missing-id' };
     }
@@ -358,7 +355,10 @@ async function downloadImage(
     } catch (error) {
         return {
             file: null,
-            error: error instanceof Error ? error.message : String(error),
+            error:
+                error instanceof Error
+                    ? error.message
+                    : String(error),
         };
     }
 }
@@ -413,13 +413,16 @@ function buildManifest(
         outputDir,
         summary: {
             total: reports.length,
-            qualified: reports.filter((post) => post.qualified).length,
+            qualified: reports.filter((post) => post.qualified)
+                .length,
             cardOk: reports.filter((post) => post.cardFile).length,
-            cardFailed: reports.filter((post) => !post.cardFile).length,
+            cardFailed: reports.filter((post) => !post.cardFile)
+                .length,
             attachmentsOk: attachments.filter((item) => item.file)
                 .length,
-            attachmentsFailed: attachments.filter((item) => !item.file)
-                .length,
+            attachmentsFailed: attachments.filter(
+                (item) => !item.file,
+            ).length,
             longTextHydrated: reports.filter(
                 (post) =>
                     post.longTextStatus === 'hydrated' ||
@@ -463,7 +466,9 @@ function openInBrowser(filePath: string): void {
             windowsHide: true,
         });
         child.on('error', (error) => {
-            console.warn(`自动打开 index.html 失败: ${error.message}`);
+            console.warn(
+                `自动打开 index.html 失败: ${error.message}`,
+            );
         });
         child.unref();
     } catch (error) {

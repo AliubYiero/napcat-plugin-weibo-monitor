@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { WeiboContentType } from 'shared';
+import { describe, expect, it } from 'vitest';
 import {
     buildSeenBaseline,
     collectPageKeys,
@@ -74,7 +74,11 @@ describe('collectPageKeys', () => {
         ).toEqual(['like:L:2026-10-25']);
         expect(
             collectPageKeys(
-                [post('L', { title: { text: '她10-25赞过的微博(2)' } })],
+                [
+                    post('L', {
+                        title: { text: '她10-25赞过的微博(2)' },
+                    }),
+                ],
                 NOW,
             ),
         ).toEqual(['like:L:2026-10-25']);

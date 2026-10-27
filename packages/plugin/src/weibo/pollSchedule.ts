@@ -39,7 +39,9 @@ export function normalizePollIntervalMinutes(value: unknown): number {
     );
 }
 
-export function createPollSchedule(rawMinutes: unknown): PollSchedule {
+export function createPollSchedule(
+    rawMinutes: unknown,
+): PollSchedule {
     const minutes = normalizePollIntervalMinutes(rawMinutes);
     const intervalMs = minutes * MS_PER_MINUTE;
 
@@ -84,8 +86,7 @@ function nextGridAt(now: number, minutes: number): number {
     if (minutes < MINUTES_PER_HOUR) {
         // 分钟网格: 直接跳到本小时后第一个 N 分钟整分 (Date 自动进位跨小时)
         const nextMinute =
-            (Math.floor(cursor.getMinutes() / minutes) + 1) *
-            minutes;
+            (Math.floor(cursor.getMinutes() / minutes) + 1) * minutes;
         cursor.setMinutes(nextMinute);
         return cursor.getTime();
     }

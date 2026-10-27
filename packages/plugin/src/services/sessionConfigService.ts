@@ -88,7 +88,9 @@ class SessionConfigService {
         if (!Number.isInteger(limit) || limit < 0) {
             throw new Error('订阅上限必须是非负整数');
         }
-        this.store.setMany([{ id, type, config: { weiboLimit: limit } }]);
+        this.store.setMany([
+            { id, type, config: { weiboLimit: limit } },
+        ]);
     }
 
     /**

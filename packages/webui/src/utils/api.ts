@@ -82,7 +82,10 @@ export function readApiErrorMessage(err: unknown): string {
             const parsed = JSON.parse(err.message) as {
                 message?: unknown;
             };
-            if (typeof parsed.message === 'string' && parsed.message) {
+            if (
+                typeof parsed.message === 'string' &&
+                parsed.message
+            ) {
                 return parsed.message;
             }
         } catch {

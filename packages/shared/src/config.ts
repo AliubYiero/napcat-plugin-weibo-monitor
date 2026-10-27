@@ -269,11 +269,7 @@ export const PUSH_RENDER_MODE_OPTIONS: readonly ConfigOption[] = [
  * `ad`: 广告内容 (独立否决项); `birthday`: 生日动态。
  * 原创动态不受本开关控制, 始终推送。
  */
-export type WeiboContentType =
-    | 'repost'
-    | 'like'
-    | 'ad'
-    | 'birthday';
+export type WeiboContentType = 'repost' | 'like' | 'ad' | 'birthday';
 
 /** 推送内容类型候选项 (与 WeiboContentType 同源) */
 export const WEIBO_CONTENT_TYPE_OPTIONS: readonly ConfigOption[] = [

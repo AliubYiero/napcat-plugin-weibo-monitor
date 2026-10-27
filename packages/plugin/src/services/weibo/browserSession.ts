@@ -5,10 +5,7 @@ import type {
     Page,
 } from 'playwright-core';
 import { CARD_WIDTH } from '../../weibo/card';
-import type {
-    ApiFetchResult,
-    StoredCookie,
-} from '../../weibo/types';
+import type { ApiFetchResult, StoredCookie } from '../../weibo/types';
 import { buildUserAgent, launchBrowser } from '../browser/launcher';
 
 const WEIBO_HOME = 'https://weibo.com/';
@@ -59,7 +56,9 @@ class BrowserSession implements WeiboBrowserSession {
     private idleTimer: ReturnType<typeof setTimeout> | null = null;
     private version: string | null = null;
 
-    constructor(private readonly options: WeiboBrowserSessionOptions) {}
+    constructor(
+        private readonly options: WeiboBrowserSessionOptions,
+    ) {}
 
     withPage<T>(task: (page: Page) => Promise<T>): Promise<T> {
         return this.runExclusive(async () => {
@@ -270,14 +269,17 @@ class BrowserSession implements WeiboBrowserSession {
         options: CookiesRefreshedOptions,
     ): Promise<void> {
         if (!this.context) return;
-        const cookies = (await this.context.cookies()).map(toStoredCookie);
+        const cookies = (await this.context.cookies()).map(
+            toStoredCookie,
+        );
         this.options.onCookiesRefreshed?.(cookies, options);
     }
 
     private scheduleIdleClose(): void {
         const idleCloseMs =
             this.options.idleCloseMs ?? DEFAULT_IDLE_CLOSE_MS;
-        if (this.active > 0 || !this.browser || idleCloseMs <= 0) return;
+        if (this.active > 0 || !this.browser || idleCloseMs <= 0)
+            return;
         this.clearIdleTimer();
         this.idleTimer = setTimeout(() => {
             if (this.active === 0) {

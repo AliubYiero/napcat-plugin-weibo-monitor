@@ -94,7 +94,10 @@ class WeiboMonitorService {
     ): Promise<AddManyResult> {
         const uid = normalizeUid(rawUid);
         const targets = dedupeTargets(rawTargets);
-        const results = new Map<string, WeiboSubscriptionTargetResult>();
+        const results = new Map<
+            string,
+            WeiboSubscriptionTargetResult
+        >();
 
         const fail = (
             target: WeiboSubscriptionTargetInput,
@@ -294,13 +297,15 @@ class WeiboMonitorService {
         if (!WeiboCookieStore.getInstance().hasCookies()) {
             return {
                 code: 'login_required',
-                message: '尚未配置微博 Cookie, 请先在 WebUI 账号页填写',
+                message:
+                    '尚未配置微博 Cookie, 请先在 WebUI 账号页填写',
             };
         }
         if (!browserService.isReady()) {
             return {
                 code: 'browser_unavailable',
-                message: '浏览器不可用, 请先在 WebUI 账号页安装 Chrome',
+                message:
+                    '浏览器不可用, 请先在 WebUI 账号页安装 Chrome',
             };
         }
         return null;
@@ -374,8 +379,7 @@ class WeiboMonitorService {
             };
         }
 
-        const screenName =
-            profile.user.screen_name ?? `UID ${uid}`;
+        const screenName = profile.user.screen_name ?? `UID ${uid}`;
         const avatar =
             profile.user.avatar_large ??
             profile.user.avatar_hd ??

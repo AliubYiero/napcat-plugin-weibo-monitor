@@ -54,7 +54,10 @@ export class WeiboCursorStore {
     /** 写入已见缓存与展示水位线 */
     set(
         uid: string,
-        next: Pick<WeiboCursor, 'watermark' | 'seenIds' | 'initialized'>,
+        next: Pick<
+            WeiboCursor,
+            'watermark' | 'seenIds' | 'initialized'
+        >,
     ): void {
         this.data[uid] = {
             watermark: next.watermark,
@@ -79,7 +82,7 @@ export class WeiboCursorStore {
                 paused: true,
             };
         } else {
-            if (!current || current.paused !== true) return;
+            if (current?.paused !== true) return;
             const { paused: _paused, ...rest } = current;
             this.data[uid] = rest;
         }
@@ -140,13 +143,14 @@ function normalizeCursor(value: unknown): WeiboCursor | null {
     if (!isRecord(value)) return { ...EMPTY, seenIds: [] };
     const hasSeenSchema =
         Array.isArray(value.seenIds) || value.initialized === true;
-    const seenIds = hasSeenSchema && Array.isArray(value.seenIds)
-        ? value.seenIds
-              .filter(
-                  (id): id is string => typeof id === 'string',
-              )
-              .slice(0, SEEN_ID_LIMIT)
-        : [];
+    const seenIds =
+        hasSeenSchema && Array.isArray(value.seenIds)
+            ? value.seenIds
+                  .filter(
+                      (id): id is string => typeof id === 'string',
+                  )
+                  .slice(0, SEEN_ID_LIMIT)
+            : [];
     const watermark =
         hasSeenSchema && typeof value.watermark === 'string'
             ? value.watermark

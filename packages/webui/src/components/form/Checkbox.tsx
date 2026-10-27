@@ -1,4 +1,5 @@
 interface CheckboxProps {
+    id?: string;
     checked: boolean;
     onChange: (checked: boolean) => void;
     disabled?: boolean;
@@ -16,6 +17,7 @@ const BASE_CLASS = 'rounded border-gray-300 dark:border-gray-600';
  * 避免页面内重复书写原生 checkbox 的样式类。
  */
 export default function Checkbox({
+    id,
     checked,
     onChange,
     disabled = false,
@@ -24,6 +26,7 @@ export default function Checkbox({
 }: CheckboxProps) {
     return (
         <input
+            id={id}
             type="checkbox"
             checked={checked}
             disabled={disabled}

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { WeiboContentType } from 'shared';
 import {
     classifyPost,
     findOwnerProfilePost,
@@ -13,12 +12,6 @@ import {
 import type { WeiboPost } from '../src/weibo/types';
 
 const UID = '1234567890';
-const ALL: readonly WeiboContentType[] = [
-    'repost',
-    'like',
-    'ad',
-    'birthday',
-];
 
 function post(overrides: Partial<WeiboPost> = {}): WeiboPost {
     return {
@@ -99,9 +92,9 @@ describe('classifyPost', () => {
     });
 
     it('置顶与广告保留在分类结果中, 不直接淘汰', () => {
-        expect(
-            classifyPost(post({ isTop: 1 }), UID),
-        ).toMatchObject({ isPinned: true });
+        expect(classifyPost(post({ isTop: 1 }), UID)).toMatchObject({
+            isPinned: true,
+        });
         expect(
             classifyPost(post({ isAd: 'true' }), UID),
         ).toMatchObject({ isAd: true });
@@ -144,12 +137,12 @@ describe('isContentEnabled', () => {
         );
         expect(repost && isContentEnabled(repost, [])).toBe(false);
         expect(like && isContentEnabled(like, [])).toBe(false);
-        expect(
-            birthday && isContentEnabled(birthday, []),
-        ).toBe(false);
-        expect(
-            repost && isContentEnabled(repost, ['repost']),
-        ).toBe(true);
+        expect(birthday && isContentEnabled(birthday, [])).toBe(
+            false,
+        );
+        expect(repost && isContentEnabled(repost, ['repost'])).toBe(
+            true,
+        );
         expect(like && isContentEnabled(like, ['like'])).toBe(true);
         expect(
             birthday && isContentEnabled(birthday, ['birthday']),
@@ -165,16 +158,14 @@ describe('isContentEnabled', () => {
             UID,
         );
         expect(
-            ad && isContentEnabled(ad, ['repost', 'like', 'birthday']),
+            ad &&
+                isContentEnabled(ad, ['repost', 'like', 'birthday']),
         ).toBe(false);
         expect(ad && isContentEnabled(ad, ['ad', 'repost'])).toBe(
             true,
         );
 
-        const originalAd = classifyPost(
-            post({ isAd: true }),
-            UID,
-        );
+        const originalAd = classifyPost(post({ isAd: true }), UID);
         expect(
             originalAd && isContentEnabled(originalAd, ['ad']),
         ).toBe(true);
@@ -236,7 +227,10 @@ describe('findOwnerProfilePost', () => {
                 user: { idstr: '999', screen_name: '原博主' },
                 title: { text: '赞过的微博' },
             }),
-            post({ idstr: 'O', user: { idstr: UID, screen_name: '本人' } }),
+            post({
+                idstr: 'O',
+                user: { idstr: UID, screen_name: '本人' },
+            }),
         ];
         expect(findOwnerProfilePost(posts, UID)?.idstr).toBe('O');
         expect(findOwnerProfilePost([posts[0]], UID)).toBeNull();

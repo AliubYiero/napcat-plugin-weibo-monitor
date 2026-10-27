@@ -67,7 +67,11 @@ class WeiboLimitService {
 
     /** 全部现有会话的上限视图 (用于 WebUI「订阅上限」tab) */
     view(
-        sessions: Array<{ type: SessionType; id: string; enabled: boolean }>,
+        sessions: Array<{
+            type: SessionType;
+            id: string;
+            enabled: boolean;
+        }>,
     ): WeiboLimitsView {
         const store = WeiboMonitorStore.getInstance();
 

@@ -3,8 +3,8 @@ import {
     buildIndexHtml,
     explainQualified,
     materializeText,
-    postFileBase,
     type PostReport,
+    postFileBase,
     type RunManifest,
 } from '../scripts/weiboTest/report';
 import type { WeiboPost } from '../src/weibo/types';

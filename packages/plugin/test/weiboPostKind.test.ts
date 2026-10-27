@@ -65,8 +65,7 @@ describe('isLikePost', () => {
         expect(
             isLikePost(
                 post({
-                    analysis_extra:
-                        'profile_insert_type:like_status',
+                    analysis_extra: 'profile_insert_type:like_status',
                 }),
             ),
         ).toBe(true);
@@ -74,11 +73,13 @@ describe('isLikePost', () => {
 
     it('识别标题里的赞过 / 赞了', () => {
         expect(
-            isLikePost(post({ title: { text: '她10-24赞过的微博' } })),
+            isLikePost(
+                post({ title: { text: '她10-24赞过的微博' } }),
+            ),
         ).toBe(true);
-        expect(
-            isLikePost(post({ title: '赞了这条微博' })),
-        ).toBe(true);
+        expect(isLikePost(post({ title: '赞了这条微博' }))).toBe(
+            true,
+        );
         expect(
             isLikePost(post({ title: { text: '普通标题' } })),
         ).toBe(false);
@@ -231,7 +232,10 @@ describe('parseLikeDay', () => {
             ),
         ).toBeNull();
         expect(
-            parseLikeDay(post({ title: { text: '赞过的微博' } }), NOW),
+            parseLikeDay(
+                post({ title: { text: '赞过的微博' } }),
+                NOW,
+            ),
         ).toBeNull();
     });
 });
@@ -254,9 +258,9 @@ describe('resolvePostKind', () => {
                 }),
             ),
         ).toBe('birthday');
-        expect(
-            resolvePostKind(post({ retweeted_status: {} })),
-        ).toBe('repost');
+        expect(resolvePostKind(post({ retweeted_status: {} }))).toBe(
+            'repost',
+        );
         expect(resolvePostKind(post())).toBe('original');
         expect(isBirthdayPost(post({ source: '生日动态' }))).toBe(
             true,
@@ -294,31 +298,29 @@ describe('resolveRootRetweet', () => {
         first.retweeted_status = second;
         second.retweeted_status = first;
 
-        expect([first, second]).toContain(
-            resolveRootRetweet(first),
-        );
+        expect([first, second]).toContain(resolveRootRetweet(first));
     });
 });
 
 describe('formatLikeTime', () => {
     it('标题时分优先, 同日无时分补拉取时间, 异日只显示日期', () => {
-        expect(
-            formatLikeTime('2026-10-25', '21:42', NOW),
-        ).toBe('2026/10/25 21:42');
-        expect(
-            formatLikeTime('2026-10-26', null, NOW),
-        ).toBe('2026/10/26 08:00:00');
-        expect(
-            formatLikeTime('2026-10-23', null, NOW),
-        ).toBe('2026/10/23');
+        expect(formatLikeTime('2026-10-25', '21:42', NOW)).toBe(
+            '2026/10/25 21:42',
+        );
+        expect(formatLikeTime('2026-10-26', null, NOW)).toBe(
+            '2026/10/26 08:00:00',
+        );
+        expect(formatLikeTime('2026-10-23', null, NOW)).toBe(
+            '2026/10/23',
+        );
     });
 
     it('缺失或非法日期返回空串, 非法时分回退', () => {
         expect(formatLikeTime(null, null, NOW)).toBe('');
         expect(formatLikeTime('2026-13-01', null, NOW)).toBe('');
-        expect(
-            formatLikeTime('2026-10-26', '25:00', NOW),
-        ).toBe('2026/10/26 08:00:00');
+        expect(formatLikeTime('2026-10-26', '25:00', NOW)).toBe(
+            '2026/10/26 08:00:00',
+        );
     });
 });
 

@@ -13,9 +13,7 @@ const DEFAULT_TITLE = '生日动态';
 export function birthdayCover(post: WeiboPost): string {
     const info = post.page_info?.card_info;
     return (
-        info?.pic_url ??
-        info?.page_info?.pic_info?.pic_big?.url ??
-        ''
+        info?.pic_url ?? info?.page_info?.pic_info?.pic_big?.url ?? ''
     );
 }
 

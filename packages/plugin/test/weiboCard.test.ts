@@ -225,7 +225,9 @@ describe('buildPostCardHtml', () => {
         });
         expect(html).toContain('margin: 6px -18px 0 -18px;');
         expect(html).toContain('padding: 16px 36px 16px 80px;');
-        expect(html).toContain('.card.has-retweet { padding-bottom: 0; }');
+        expect(html).toContain(
+            '.card.has-retweet { padding-bottom: 0; }',
+        );
         expect(html).toContain('background: #f9f9f9');
     });
 
@@ -337,8 +339,7 @@ describe('buildPostCardHtml', () => {
                     '据最新消息，安德鲁·加菲尔德已与漫威签下一份新协议。',
                 page_url:
                     'https://m.s.weibo.com/applink/go2?noclose=1&url=sinaweibo%3A%2F%2Fsearchall',
-                page_pic:
-                    'https://wx2.sinaimg.cn/middle/cover.jpg',
+                page_pic: 'https://wx2.sinaimg.cn/middle/cover.jpg',
             },
         });
         expect(html).toContain('class="link-card"');
@@ -358,8 +359,7 @@ describe('buildPostCardHtml', () => {
                 content2: '据最新消息，续集已经立项。',
                 page_url:
                     'https://m.s.weibo.com/applink/go2?noclose=1',
-                page_pic:
-                    'https://wx2.sinaimg.cn/middle/cover.jpg',
+                page_pic: 'https://wx2.sinaimg.cn/middle/cover.jpg',
             },
         });
         expect(html).toContain('class="link-desc"');
@@ -388,8 +388,7 @@ describe('buildPostCardHtml', () => {
                 page_title: '标题',
                 page_desc: '简介 <b>加粗</b> & 符号',
                 page_url: 'https://m.s.weibo.com/applink/go2',
-                page_pic:
-                    'https://wx2.sinaimg.cn/middle/cover.jpg',
+                page_pic: 'https://wx2.sinaimg.cn/middle/cover.jpg',
             },
         });
         expect(html).toContain('简介 加粗 &amp; 符号');
@@ -725,9 +724,7 @@ describe('点赞卡片', () => {
         );
         expect(html).toContain('@原博主');
         expect(html).toContain('原微博正文');
-        expect(html).toContain(
-            'https://wx1.sinaimg.cn/a.jpg',
-        );
+        expect(html).toContain('https://wx1.sinaimg.cn/a.jpg');
         expect(html).not.toContain('查看原微博');
         expect(html).not.toContain('https://weibo.com/999/L1');
     });
@@ -799,14 +796,11 @@ describe('点赞卡片', () => {
 
 describe('生日卡片', () => {
     it('输出封面、标题与站内生日页链接', () => {
-        const html = buildPostCardHtml(
-            BIRTHDAY_POST,
-            { context: { kind: 'birthday' } },
-        );
+        const html = buildPostCardHtml(BIRTHDAY_POST, {
+            context: { kind: 'birthday' },
+        });
         expect(html).toContain('birthday-card');
-        expect(html).toContain(
-            'https://wx1.sinaimg.cn/birthday.jpg',
-        );
+        expect(html).toContain('https://wx1.sinaimg.cn/birthday.jpg');
         expect(html).toContain('生日祝福');
         expect(html).toContain('https://weibo.com/birthday/1');
         expect(html).toContain('查看生日动态');
@@ -833,13 +827,9 @@ describe('生日卡片', () => {
             },
             { context: { kind: 'birthday' } },
         );
-        expect(html).toContain(
-            'https://wx2.sinaimg.cn/fallback.jpg',
-        );
+        expect(html).toContain('https://wx2.sinaimg.cn/fallback.jpg');
         expect(html).toContain('备用标题');
-        expect(html).toContain(
-            'https://new.vip.weibo.cn/birthday/2',
-        );
+        expect(html).toContain('https://new.vip.weibo.cn/birthday/2');
     });
 
     it('无创建时间与地区时不输出占位', () => {

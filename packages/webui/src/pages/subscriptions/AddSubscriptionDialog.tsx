@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-    IconAlert,
-    IconCheck,
-    IconX,
-} from '../../components/Icons';
 import Checkbox from '../../components/form/Checkbox';
+import { IconAlert, IconCheck, IconX } from '../../components/Icons';
 import { showToast } from '../../hooks/useToast';
 import type {
     AddWeiboSubscriptionResult,
@@ -14,13 +10,10 @@ import type {
     WeiboLimitRow,
     WeiboLimitsView,
     WeiboSubscription,
-    WeiboSubscriptionTargetResult,
     WeiboSubscriptionTargetInput,
+    WeiboSubscriptionTargetResult,
 } from '../../types';
-import {
-    noAuthFetch,
-    readApiErrorMessage,
-} from '../../utils/api';
+import { noAuthFetch, readApiErrorMessage } from '../../utils/api';
 import {
     limitText,
     sessionFallbackName,
@@ -55,13 +48,16 @@ export default function AddSubscriptionDialog({
         new Map(),
     );
     const [limitsLoading, setLimitsLoading] = useState(false);
-    const [limitsError, setLimitsError] = useState<string | null>(null);
+    const [limitsError, setLimitsError] = useState<string | null>(
+        null,
+    );
     const [status, setStatus] = useState<PluginStatus | null>(null);
     const [statusError, setStatusError] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [results, setResults] = useState<
         WeiboSubscriptionTargetResult[] | null
     >(null);
+    const uidInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -74,13 +70,15 @@ export default function AddSubscriptionDialog({
         setStatusError(false);
         setLimitsLoading(true);
         setLimitsError(null);
+        uidInputRef.current?.focus();
 
         let cancelled = false;
         void (async () => {
-            const [limitsResult, statusResult] = await Promise.allSettled([
-                noAuthFetch<WeiboLimitsView>('/weibo/limits'),
-                noAuthFetch<PluginStatus>('/status'),
-            ]);
+            const [limitsResult, statusResult] =
+                await Promise.allSettled([
+                    noAuthFetch<WeiboLimitsView>('/weibo/limits'),
+                    noAuthFetch<PluginStatus>('/status'),
+                ]);
             if (cancelled) return;
 
             if (
@@ -190,8 +188,7 @@ export default function AddSubscriptionDialog({
         const limit = row ? row.limit : null;
         const unlimited = row?.unlimited ?? false;
         const subscribed = subscribedKeys.has(key);
-        const full =
-            !unlimited && limit !== null && used >= limit;
+        const full = !unlimited && limit !== null && used >= limit;
         return {
             key,
             used,
@@ -227,10 +224,9 @@ export default function AddSubscriptionDialog({
     };
 
     const cookieReady =
-        status !== null &&
-        status.weibo.cookie.configured &&
+        status?.weibo.cookie.configured === true &&
         !status.weibo.cookie.invalid;
-    const browserReady = status !== null && status.weibo.browser.available;
+    const browserReady = status?.weibo.browser.available === true;
     const prerequisiteError = statusError
         ? '无法读取运行状态，请关闭窗口后重试。'
         : status === null
@@ -319,18 +315,17 @@ export default function AddSubscriptionDialog({
         uidValid &&
         enabledSessions.length > 0 &&
         enabledSessions.every((session) =>
-            subscribedKeys.has(
-                sessionKey(session.type, session.id),
-            ),
+            subscribedKeys.has(sessionKey(session.type, session.id)),
         );
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
+            <button
+                type="button"
+                aria-label="关闭新增订阅"
                 className="absolute inset-0 bg-black/40"
-                onClick={() => {
-                    if (!submitting) onClose();
-                }}
+                disabled={submitting}
+                onClick={onClose}
             />
             <div
                 role="dialog"
@@ -344,7 +339,8 @@ export default function AddSubscriptionDialog({
                             新增订阅
                         </h2>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            输入博主 UID，选择要推送的会话；同一博主在多个会话间共用一份动态缓存。
+                            输入博主
+                            UID，选择要推送的会话；同一博主在多个会话间共用一份动态缓存。
                         </p>
                     </div>
                     <button
@@ -383,10 +379,10 @@ export default function AddSubscriptionDialog({
                         </label>
                         <input
                             id="weibo-uid"
+                            ref={uidInputRef}
                             type="text"
                             inputMode="numeric"
                             value={uid}
-                            autoFocus
                             disabled={submitting}
                             onChange={(event) =>
                                 setUid(event.target.value)
@@ -406,8 +402,12 @@ export default function AddSubscriptionDialog({
                             <span className="text-xs font-medium text-gray-500">
                                 推送会话
                             </span>
-                            <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <label
+                                htmlFor="weibo-select-all"
+                                className="flex items-center gap-1.5 text-xs text-gray-500"
+                            >
                                 <Checkbox
+                                    id="weibo-select-all"
                                     checked={allSelected}
                                     disabled={
                                         !hasSelectable || submitting
@@ -428,7 +428,9 @@ export default function AddSubscriptionDialog({
                         {!limitsLoading &&
                             enabledSessions.length === 0 && (
                                 <div className="text-center text-xs text-gray-400 py-6 space-y-2">
-                                    <p>没有已启用的会话，无法新增订阅。</p>
+                                    <p>
+                                        没有已启用的会话，无法新增订阅。
+                                    </p>
                                     <button
                                         type="button"
                                         className="btn btn-ghost text-xs"
@@ -442,75 +444,84 @@ export default function AddSubscriptionDialog({
                         {!limitsLoading &&
                             enabledSessions.length > 0 && (
                                 <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800/50">
-                                    {enabledSessions.map((session) => {
-                                        const state = rowState(session);
-                                        const label =
-                                            session.name ||
-                                            sessionFallbackName(
-                                                session.type,
-                                            );
-                                        return (
-                                            <label
-                                                key={state.key}
-                                                className={`flex items-center gap-2 px-3 py-2 text-xs ${
-                                                    state.selectable
-                                                        ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5'
-                                                        : 'opacity-60'
-                                                }`}
-                                            >
-                                                <Checkbox
-                                                    checked={selected.has(
-                                                        state.key,
-                                                    )}
-                                                    disabled={
-                                                        !state.selectable ||
-                                                        submitting
+                                    {enabledSessions.map(
+                                        (session) => {
+                                            const state =
+                                                rowState(session);
+                                            const label =
+                                                session.name ||
+                                                sessionFallbackName(
+                                                    session.type,
+                                                );
+                                            return (
+                                                <label
+                                                    key={state.key}
+                                                    htmlFor={
+                                                        state.key
                                                     }
-                                                    onChange={(checked) =>
-                                                        toggleOne(
-                                                            state.key,
-                                                            checked,
-                                                        )
-                                                    }
-                                                    ariaLabel={`推送 ${label}`}
-                                                />
-                                                <span className="shrink-0 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-500">
-                                                    {sessionTypeLabel(
-                                                        session.type,
-                                                    )}
-                                                </span>
-                                                <span className="flex-1 truncate">
-                                                    {label}
-                                                </span>
-                                                <span className="font-mono text-[11px] text-gray-400">
-                                                    ({session.id})
-                                                </span>
-                                                <span
-                                                    className={`shrink-0 text-[11px] ${
-                                                        state.subscribed
-                                                            ? 'text-primary'
-                                                            : state.full
-                                                              ? 'text-amber-600 dark:text-amber-400'
-                                                              : 'text-gray-400'
+                                                    className={`flex items-center gap-2 px-3 py-2 text-xs ${
+                                                        state.selectable
+                                                            ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5'
+                                                            : 'opacity-60'
                                                     }`}
                                                 >
-                                                    {state.subscribed
-                                                        ? '已订阅'
-                                                        : state.full
-                                                          ? '已满'
-                                                          : `已用 ${state.used}/${
-                                                                state.unlimited
-                                                                    ? limitText(
-                                                                          null,
-                                                                      )
-                                                                    : limitText(
-                                                                          state.limit,
-                                                                      )
-                                                            }`}
-                                                </span>
-                                            </label>
-                                        );
-                                    })}
+                                                    <Checkbox
+                                                        id={state.key}
+                                                        checked={selected.has(
+                                                            state.key,
+                                                        )}
+                                                        disabled={
+                                                            !state.selectable ||
+                                                            submitting
+                                                        }
+                                                        onChange={(
+                                                            checked,
+                                                        ) =>
+                                                            toggleOne(
+                                                                state.key,
+                                                                checked,
+                                                            )
+                                                        }
+                                                        ariaLabel={`推送 ${label}`}
+                                                    />
+                                                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-500">
+                                                        {sessionTypeLabel(
+                                                            session.type,
+                                                        )}
+                                                    </span>
+                                                    <span className="flex-1 truncate">
+                                                        {label}
+                                                    </span>
+                                                    <span className="font-mono text-[11px] text-gray-400">
+                                                        ({session.id})
+                                                    </span>
+                                                    <span
+                                                        className={`shrink-0 text-[11px] ${
+                                                            state.subscribed
+                                                                ? 'text-primary'
+                                                                : state.full
+                                                                  ? 'text-amber-600 dark:text-amber-400'
+                                                                  : 'text-gray-400'
+                                                        }`}
+                                                    >
+                                                        {state.subscribed
+                                                            ? '已订阅'
+                                                            : state.full
+                                                              ? '已满'
+                                                              : `已用 ${state.used}/${
+                                                                    state.unlimited
+                                                                        ? limitText(
+                                                                              null,
+                                                                          )
+                                                                        : limitText(
+                                                                              state.limit,
+                                                                          )
+                                                                }`}
+                                                    </span>
+                                                </label>
+                                            );
+                                        },
+                                    )}
                                 </div>
                             )}
 
@@ -541,7 +552,8 @@ export default function AddSubscriptionDialog({
                             {results.map((item) => {
                                 const session = sessions.find(
                                     (candidate) =>
-                                        candidate.type === item.type &&
+                                        candidate.type ===
+                                            item.type &&
                                         candidate.id === item.id,
                                 );
                                 const label =
@@ -561,7 +573,9 @@ export default function AddSubscriptionDialog({
                                     >
                                         <span className="mt-0.5 shrink-0">
                                             {item.ok ? (
-                                                <IconCheck size={12} />
+                                                <IconCheck
+                                                    size={12}
+                                                />
                                             ) : (
                                                 <IconX size={12} />
                                             )}

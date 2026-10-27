@@ -29,12 +29,12 @@ function pageSession(options: {
 
 describe('登录页识别', () => {
     it('识别常见登录域名与路径', () => {
-        expect(isLoginUrl('https://login.sina.com.cn/sso/login.php')).toBe(
-            true,
-        );
-        expect(isLoginUrl('https://passport.weibo.com/sso/signin')).toBe(
-            true,
-        );
+        expect(
+            isLoginUrl('https://login.sina.com.cn/sso/login.php'),
+        ).toBe(true);
+        expect(
+            isLoginUrl('https://passport.weibo.com/sso/signin'),
+        ).toBe(true);
         expect(isLoginUrl('https://weibo.com/login.php')).toBe(true);
         expect(isLoginUrl('https://weibo.com/u/1234567890')).toBe(
             false,
@@ -140,12 +140,15 @@ describe('probeLoginState', () => {
         });
 
         expect(
-            (await probeLoginState(session('https://weibo.com/'))).result,
+            (await probeLoginState(session('https://weibo.com/')))
+                .result,
         ).toBe('inconclusive');
         expect(
             (
                 await probeLoginState(
-                    session('https://login.sina.com.cn/sso/login.php'),
+                    session(
+                        'https://login.sina.com.cn/sso/login.php',
+                    ),
                 )
             ).result,
         ).toBe('invalid');

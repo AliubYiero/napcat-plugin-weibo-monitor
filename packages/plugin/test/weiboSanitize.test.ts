@@ -112,7 +112,11 @@ describe('sanitizeWeiboHtml', () => {
             '#育碧##育碧游戏##育碧40周年#',
         );
         expect(html.match(/<a /g)).toHaveLength(3);
-        for (const label of ['#育碧#', '#育碧游戏#', '#育碧40周年#']) {
+        for (const label of [
+            '#育碧#',
+            '#育碧游戏#',
+            '#育碧40周年#',
+        ]) {
             expect(html).toContain(`>${label}</a>`);
         }
     });

@@ -10,10 +10,7 @@ import type {
     WeiboLimitRow,
     WeiboLimitsView,
 } from '../../types';
-import {
-    noAuthFetch,
-    readApiErrorMessage,
-} from '../../utils/api';
+import { noAuthFetch, readApiErrorMessage } from '../../utils/api';
 import {
     isValidLimitValue,
     limitText,
@@ -21,7 +18,6 @@ import {
     sessionFallbackName,
     sessionKey,
     sessionNameOf,
-    sessionTypeLabel,
     sortSessionRows,
 } from '../../utils/subscriptionView';
 
@@ -50,9 +46,8 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
 
     const fetchView = useCallback(async () => {
         try {
-            const res = await noAuthFetch<WeiboLimitsView>(
-                '/weibo/limits',
-            );
+            const res =
+                await noAuthFetch<WeiboLimitsView>('/weibo/limits');
             if (res.code !== 0 || !res.data) {
                 throw new Error(res.message || '读取失败');
             }
@@ -171,10 +166,13 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
         <section className="card overflow-hidden animate-fade-in-up">
             <div className="p-5 pb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h2 className="font-semibold text-sm">订阅上限</h2>
+                    <h2 className="font-semibold text-sm">
+                        订阅上限
+                    </h2>
                     <p className="text-xs text-gray-400 mt-0.5">
                         上限只约束新增订阅，调整后不会回收已有订阅；设为{' '}
-                        {view.meta.min} 可禁止新增。留空并保存、或点击「恢复」即回落默认值。
+                        {view.meta.min}{' '}
+                        可禁止新增。留空并保存、或点击「恢复」即回落默认值。
                     </p>
                 </div>
                 <button
@@ -359,16 +357,23 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
                                             ) : (
                                                 <input
                                                     type="number"
-                                                    min={view.meta.min}
-                                                    max={view.meta.max}
+                                                    min={
+                                                        view.meta.min
+                                                    }
+                                                    max={
+                                                        view.meta.max
+                                                    }
                                                     step={1}
                                                     value={draft}
                                                     placeholder={`默认 ${view.meta.defaults[row.type]}`}
                                                     disabled={saving}
-                                                    onChange={(event) =>
+                                                    onChange={(
+                                                        event,
+                                                    ) =>
                                                         setDraft(
                                                             row,
-                                                            event.target
+                                                            event
+                                                                .target
                                                                 .value,
                                                         )
                                                     }
@@ -388,7 +393,9 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
                                                             !canSave
                                                         }
                                                         onClick={() => {
-                                                            void save(row);
+                                                            void save(
+                                                                row,
+                                                            );
                                                         }}
                                                     >
                                                         保存
@@ -398,7 +405,9 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
                                                         <button
                                                             type="button"
                                                             className="btn btn-ghost text-xs"
-                                                            disabled={saving}
+                                                            disabled={
+                                                                saving
+                                                            }
                                                             onClick={() => {
                                                                 void reset(
                                                                     row,
@@ -421,4 +430,3 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
         </section>
     );
 }
-

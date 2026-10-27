@@ -45,7 +45,9 @@ export function formatWeiboTime(raw: string | undefined): string {
  *
  * 仅用于同格式时间之间的先后比较; 无法解析时返回 null。
  */
-export function parseWeiboTimeMs(raw: string | undefined): number | null {
+export function parseWeiboTimeMs(
+    raw: string | undefined,
+): number | null {
     const formatted = formatWeiboTime(raw);
     if (formatted === '未知时间') return null;
     const parsed = Date.parse(

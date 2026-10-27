@@ -174,7 +174,9 @@ export function buildPostCardHtml(
               )
             : formatWeiboTime(post.created_at);
     const createdAt =
-        kind === 'birthday' && rawCreatedAt === '未知时间' ? '' : rawCreatedAt;
+        kind === 'birthday' && rawCreatedAt === '未知时间'
+            ? ''
+            : rawCreatedAt;
     const source =
         kind === 'like' ? '' : htmlToText(post.source ?? '');
     const region =
@@ -185,8 +187,7 @@ export function buildPostCardHtml(
         kind === 'like' || kind === 'birthday'
             ? ''
             : sanitizeWeiboHtml(post.text ?? post.text_raw ?? '');
-    const likeReason =
-        kind === 'like' ? buildLikeReason(post) : '';
+    const likeReason = kind === 'like' ? buildLikeReason(post) : '';
     const images =
         kind === 'like' || kind === 'birthday'
             ? []
@@ -486,7 +487,8 @@ function pickPlayCount(page: WeiboPageInfo): string {
     const numeric =
         typeof onlineUsersNumber === 'number'
             ? onlineUsersNumber
-            : typeof onlineUsersNumber === 'string' && onlineUsersNumber.trim()
+            : typeof onlineUsersNumber === 'string' &&
+                onlineUsersNumber.trim()
               ? Number(onlineUsersNumber)
               : Number.NaN;
     return Number.isFinite(numeric) && numeric > 0

@@ -5,7 +5,13 @@
  * 头像后台补拉只自动重试一次, 不做轮询。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import type {
     SessionInfo,
     SessionType,
@@ -104,7 +110,10 @@ export function useSubscriptions() {
     );
 
     const remove = useCallback(
-        async (uid: string, target: { type: SessionType; id: string }) => {
+        async (
+            uid: string,
+            target: { type: SessionType; id: string },
+        ) => {
             await noAuthFetch('/weibo/subscriptions/remove', {
                 method: 'POST',
                 body: JSON.stringify({ uid, ...target }),
