@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { WeiboInstallState } from 'shared';
 import {
     type DetectOptions,
     sharedExecutablePath,
@@ -152,13 +153,7 @@ function messageOf(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-export interface InstallState {
-    running: boolean;
-    percent: number;
-    message: string;
-    error: string | null;
-    path: string | null;
-}
+export type InstallState = WeiboInstallState;
 
 let state: InstallState = idleState();
 

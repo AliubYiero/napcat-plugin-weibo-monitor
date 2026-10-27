@@ -329,6 +329,11 @@ _Avoid_: "点击展开"——展开按钮只是前端触发同一 XHR; 本插件
 正文中仍残留「全文 / 展开」链接或正文为空, 表示当前响应没有给出完整正文。`isLongText` 标记**不是**截断信号: 指定动态读取走 `show?isGetLongText=true` 时会返回完整正文, 却仍保留 `isLongText: true`。因此只有截断信号才触发长文补拉。
 _Avoid_: "isLongText = 需要补拉"——该等价只在列表接口成立, 在 show 接口不成立。
 
+### WebUI 契约 (webui contract)
+
+插件后端产出、WebUI 消费的跨进程视图类型, 唯一来源是 `packages/shared/src/webui.ts`。它只描述可见字段, 不包含 store 结构、HTTP 细节或页面状态。
+_Avoid_: "前端类型"——WebUI 类型只是消费侧; "接口返回"——契约不承诺响应包装形状。
+
 ### 帮助变体 (help variant)
 
 帮助输出的版本档位 (`user` / `admin` / `superAdmin`), 由"角色 + 会话类型"共同决定, 与权限档位不是一一对应 (群聊超管输出 Admin 版)。

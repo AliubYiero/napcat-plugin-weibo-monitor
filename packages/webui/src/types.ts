@@ -1,5 +1,8 @@
-/** WebUI 前端类型定义 */
-import type { ApiResponse, PluginConfig } from 'shared';
+/**
+ * WebUI 前端类型
+ *
+ * 跨进程契约统一来自 shared; 此处只做重导出, 避免与后端各写一份。
+ */
 
 export type {
     AddWeiboSubscriptionRequest,
@@ -8,149 +11,34 @@ export type {
     Cmd,
     ContentHelp,
     ContentHelpMethod,
+    CookieActionResult,
     Instruction,
     InstructionSet,
+    LoginProbeResult,
     PluginConfig,
+    PluginStats,
+    PluginStatus,
+    PollingState,
     Role,
     SessionConfig,
     SessionConfigBase,
+    SessionInfo,
     SessionType,
     SetWeiboLimitRequest,
+    WeiboBrowserStatus,
+    WeiboCookieStatus,
+    WeiboInstallState,
     WeiboLimitMeta,
     WeiboLimitResult,
     WeiboLimitRow,
     WeiboLimitsView,
+    WeiboPollingStatus,
+    WeiboStatus,
+    WeiboSubscription,
+    WeiboSubscriptionsView,
+    WeiboSubscriptionTarget,
     WeiboSubscriptionTargetInput,
     WeiboSubscriptionTargetResult,
+    WeiboTargetStatus,
     WeiboWriteCode,
 } from 'shared';
-
-export interface PluginStatus {
-    pluginName: string;
-    uptime: number;
-    uptimeFormatted: string;
-    config: PluginConfig;
-    stats: {
-        processed: number;
-        todayProcessed: number;
-        lastUpdateDay: string;
-    };
-    weibo: WeiboStatus;
-}
-
-/** 轮询状态 (与后端派生枚举一一对应) */
-export type PollingState =
-    | 'stopped'
-    | 'unconfigured'
-    | 'invalid'
-    | 'backoff'
-    | 'idle'
-    | 'error'
-    | 'running';
-
-export interface WeiboPollingStatus {
-    state: PollingState;
-    running: boolean;
-    intervalMinutes: number;
-    /** 排期口径文案, 如「每小时整点」「每 10 分钟整分」「固定间隔 7 分钟」 */
-    scheduleLabel: string;
-    lastPollAt: number | null;
-    nextPollAt: number | null;
-    backoffUntil: number | null;
-    lastError: string | null;
-    lastErrorAt: number | null;
-}
-
-export type LoginProbeResult = 'valid' | 'invalid' | 'inconclusive';
-
-export interface WeiboCookieStatus {
-    configured: boolean;
-    /** Cookie 名列表 (值永不出后端) */
-    names: string[];
-    invalid: boolean;
-    invalidSince: number | null;
-    lastSuccessAt: number | null;
-    lastValidatedAt: number | null;
-    lastRefreshAt: number | null;
-    lastKeepAliveAt: number | null;
-    lastProbeAt: number | null;
-    lastProbeResult: LoginProbeResult | null;
-    lastProbeMessage: string | null;
-    invalidNotifiedAt: number | null;
-    keepAliveFailureCount: number;
-    keepAliveInconclusiveCount: number;
-    runtimeAlertedAt: number | null;
-}
-
-export interface WeiboBrowserStatus {
-    available: boolean;
-    source: 'configured' | 'shared' | 'system' | 'none';
-    executablePath: string | null;
-    version: string | null;
-    installed: boolean;
-    error: string | null;
-}
-
-export interface WeiboTargetStatus {
-    uid: string;
-    screenName: string;
-    subscribers: number;
-    watermark: string | null;
-    lastError: string | null;
-    lastPushedAt: number | null;
-}
-
-export interface WeiboStatus {
-    polling: WeiboPollingStatus;
-    cookie: WeiboCookieStatus;
-    browser: WeiboBrowserStatus;
-    subscriptions: number;
-    targets: WeiboTargetStatus[];
-}
-
-export interface WeiboSubscription {
-    uid: string;
-    screenName: string;
-    /** 远程头像 URL (本地副本缺失时的回退) */
-    avatar: string;
-    /** 插件本地头像路径; 未缓存时为 null */
-    avatarUrl: string | null;
-    targets: Array<{
-        type: 'group' | 'private';
-        id: string;
-        enabled: boolean;
-    }>;
-}
-
-/** GET /weibo/subscriptions 的响应 (后台补拉头像时带 pendingAvatars) */
-export type WeiboSubscriptionsResult = ApiResponse<
-    WeiboSubscription[]
-> & { pendingAvatars?: number };
-
-export interface CookieActionResult {
-    valid: boolean;
-    message: string;
-}
-
-export interface WeiboInstallState {
-    running: boolean;
-    percent: number;
-    message: string;
-    error: string | null;
-    path: string | null;
-}
-
-/**
- * 会话信息（群或好友），对应后端 GET /sessions 的归一化返回
- */
-export interface SessionInfo {
-    /** 群号或用户 QQ 号 */
-    id: string;
-    type: 'group' | 'private';
-    /** 群名 / 好友备注（无备注时取昵称） */
-    name: string;
-    enabled: boolean;
-    /** 仅群会话提供 */
-    memberCount?: number;
-    maxMemberCount?: number;
-}

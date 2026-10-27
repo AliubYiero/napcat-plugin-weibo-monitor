@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { PAGES } from 'shared';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -15,15 +15,9 @@ import SubscriptionsPage from './pages/SubscriptionsPage';
 function App() {
     const [currentPage, setCurrentPage] = usePageRoute();
     const [isScrolled, setIsScrolled] = useState(false);
-    const { status, fetchStatus } = useStatus();
+    const { status } = useStatus();
 
     useTheme();
-
-    useEffect(() => {
-        fetchStatus();
-        const interval = setInterval(fetchStatus, 5000);
-        return () => clearInterval(interval);
-    }, [fetchStatus]);
 
     const handleScroll = (e: React.UIEvent<HTMLElement>) => {
         setIsScrolled(e.currentTarget.scrollTop > 10);

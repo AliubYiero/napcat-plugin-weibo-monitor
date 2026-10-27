@@ -10,8 +10,8 @@ import {
 } from '../components/Icons';
 import { showToast } from '../hooks/useToast';
 import type { SessionInfo } from '../types';
-import { noAuthFetch } from '../utils/api';
 import { sessionKey as sessionTargetKey } from '../utils/subscriptionView';
+import { webuiApi } from '../utils/webuiApi';
 
 type TabType = 'group' | 'private';
 
@@ -31,12 +31,12 @@ export default function SessionsPage() {
     const fetchSessions = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await noAuthFetch<SessionInfo[]>('/sessions');
-            if (res.code === 0 && res.data) {
+            const res = await webuiApi.listSessions();
+            if (res.ok) {
                 setSessions(res.data);
+            } else {
+                showToast(res.message, 'error');
             }
-        } catch {
-            showToast('获取会话列表失败', 'error');
         } finally {
             setLoading(false);
         }
@@ -73,28 +73,25 @@ export default function SessionsPage() {
         session: SessionInfo,
         enabled: boolean,
     ) => {
-        try {
-            await noAuthFetch(
-                `/sessions/${session.type}/${session.id}/config`,
-                {
-                    method: 'POST',
-                    body: JSON.stringify({ enabled }),
-                },
-            );
-            setSessions((prev) =>
-                prev.map((s) =>
-                    sessionKey(s) === sessionKey(session)
-                        ? { ...s, enabled }
-                        : s,
-                ),
-            );
-            showToast(
-                `已${enabled ? '启用' : '禁用'} ${session.name || session.id}`,
-                'success',
-            );
-        } catch {
-            showToast('操作失败', 'error');
+        const result = await webuiApi.updateSession(
+            { type: session.type, id: session.id },
+            enabled,
+        );
+        if (!result.ok) {
+            showToast(result.message, 'error');
+            return;
         }
+        setSessions((prev) =>
+            prev.map((s) =>
+                sessionKey(s) === sessionKey(session)
+                    ? { ...s, enabled }
+                    : s,
+            ),
+        );
+        showToast(
+            `已${enabled ? '启用' : '禁用'} ${session.name || session.id}`,
+            'success',
+        );
     };
 
     const bulkToggle = async (enabled: boolean) => {
@@ -105,27 +102,28 @@ export default function SessionsPage() {
             showToast('请先选择会话', 'warning');
             return;
         }
-        try {
-            await noAuthFetch('/sessions/bulk-config', {
-                method: 'POST',
-                body: JSON.stringify({ type: tab, enabled, ids }),
-            });
-            setSessions((prev) =>
-                prev.map((s) =>
-                    s.type === tab && selected.has(sessionKey(s))
-                        ? { ...s, enabled }
-                        : s,
-                ),
-            );
-            showToast(
-                `已批量${enabled ? '启用' : '禁用'} ${ids.length} 个会话`,
-                'success',
-            );
-            setSelected(new Set());
-            setSelectAll(false);
-        } catch {
-            showToast('批量操作失败', 'error');
+        const result = await webuiApi.updateSessions(
+            tab,
+            enabled,
+            ids,
+        );
+        if (!result.ok) {
+            showToast(result.message, 'error');
+            return;
         }
+        setSessions((prev) =>
+            prev.map((s) =>
+                s.type === tab && selected.has(sessionKey(s))
+                    ? { ...s, enabled }
+                    : s,
+            ),
+        );
+        showToast(
+            `已批量${enabled ? '启用' : '禁用'} ${ids.length} 个会话`,
+            'success',
+        );
+        setSelected(new Set());
+        setSelectAll(false);
     };
 
     const toggleSelect = (session: SessionInfo) => {

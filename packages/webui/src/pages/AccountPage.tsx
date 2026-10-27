@@ -11,7 +11,6 @@ import { showToast } from '../hooks/useToast';
 import type {
     CookieActionResult,
     LoginProbeResult,
-    PluginStatus,
     WeiboBrowserStatus,
     WeiboCookieStatus,
     WeiboInstallState,
@@ -23,6 +22,7 @@ import {
     formatSource,
     formatTime,
 } from '../utils/format';
+import { webuiApi } from '../utils/webuiApi';
 
 const INSTALL_POLL_MS = 1000;
 
@@ -47,14 +47,12 @@ export default function AccountPage() {
     const [loading, setLoading] = useState(true);
 
     const fetchStatus = useCallback(async () => {
-        try {
-            const res = await noAuthFetch<PluginStatus>('/status');
-            if (res.code === 0 && res.data) {
-                setCookieStatus(res.data.weibo.cookie);
-                setBrowser(res.data.weibo.browser);
-            }
-        } catch {
-            showToast('获取微博状态失败', 'error');
+        const res = await webuiApi.getStatus();
+        if (res.ok) {
+            setCookieStatus(res.data.weibo.cookie);
+            setBrowser(res.data.weibo.browser);
+        } else {
+            showToast(res.message, 'error');
         }
     }, []);
 

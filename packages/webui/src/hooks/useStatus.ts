@@ -1,20 +1,19 @@
-import { useCallback, useState } from 'react';
-import type { PluginStatus } from '../types';
-import { noAuthFetch } from '../utils/api';
+import { useCallback } from 'react';
+import { webuiApi } from '../utils/webuiApi';
+import { useResource } from './useResource';
+
+const STATUS_REFRESH_MS = 5000;
 
 export function useStatus() {
-    const [status, setStatus] = useState<PluginStatus | null>(null);
+    const resource = useResource(
+        useCallback(() => webuiApi.getStatus(), []),
+        { refreshMs: STATUS_REFRESH_MS },
+    );
 
-    const fetchStatus = useCallback(async () => {
-        try {
-            const data = await noAuthFetch<PluginStatus>('/status');
-            if (data.code === 0 && data.data) {
-                setStatus(data.data);
-            }
-        } catch (e) {
-            console.error('Status fetch failed:', e);
-        }
-    }, []);
-
-    return { status, fetchStatus };
+    return {
+        status: resource.data,
+        fetchStatus: resource.refresh,
+        loading: resource.loading,
+        error: resource.error,
+    };
 }

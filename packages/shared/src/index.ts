@@ -14,6 +14,8 @@ export * from './help';
 export * from './sessionCapabilities';
 // WebUI 骨架元信息 (页面清单 + PageId)
 export * from './ui';
+// WebUI 读写契约 (状态 / 会话 / 订阅 / 安装)
+export * from './webui';
 // 订阅与订阅上限的跨包契约
 export * from './weibo';
 

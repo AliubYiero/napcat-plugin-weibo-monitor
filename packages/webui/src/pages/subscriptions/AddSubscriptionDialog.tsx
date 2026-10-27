@@ -5,22 +5,21 @@ import Checkbox from '../../components/form/Checkbox';
 import { IconAlert, IconCheck, IconX } from '../../components/Icons';
 import { showToast } from '../../hooks/useToast';
 import type {
-    AddWeiboSubscriptionResult,
     PluginStatus,
     SessionInfo,
     WeiboLimitRow,
-    WeiboLimitsView,
     WeiboSubscription,
     WeiboSubscriptionTargetInput,
     WeiboSubscriptionTargetResult,
 } from '../../types';
-import { noAuthFetch, readApiErrorMessage } from '../../utils/api';
+import { readApiErrorMessage } from '../../utils/api';
 import {
     limitText,
     sessionFallbackName,
     sessionKey,
     sessionTypeLabel,
 } from '../../utils/subscriptionView';
+import { webuiApi } from '../../utils/webuiApi';
 
 interface AddSubscriptionDialogProps {
     open: boolean;
@@ -73,33 +72,20 @@ export default function AddSubscriptionDialog({
 
         let cancelled = false;
         void (async () => {
-            const [limitsResult, statusResult] =
-                await Promise.allSettled([
-                    noAuthFetch<WeiboLimitsView>('/weibo/limits'),
-                    noAuthFetch<PluginStatus>('/status'),
-                ]);
+            const [limitsResult, statusResult] = await Promise.all([
+                webuiApi.getLimits(),
+                webuiApi.getStatus(),
+            ]);
             if (cancelled) return;
 
-            if (
-                limitsResult.status === 'fulfilled' &&
-                limitsResult.value.code === 0 &&
-                limitsResult.value.data
-            ) {
-                setLimitRows(limitsResult.value.data.sessions);
+            if (limitsResult.ok) {
+                setLimitRows(limitsResult.data.sessions);
             } else {
-                setLimitsError(
-                    limitsResult.status === 'rejected'
-                        ? readApiErrorMessage(limitsResult.reason)
-                        : '读取会话上限失败',
-                );
+                setLimitsError(limitsResult.message);
             }
 
-            if (
-                statusResult.status === 'fulfilled' &&
-                statusResult.value.code === 0 &&
-                statusResult.value.data
-            ) {
-                setStatus(statusResult.value.data);
+            if (statusResult.ok) {
+                setStatus(statusResult.data);
             } else {
                 setStatusError(true);
             }
@@ -261,15 +247,12 @@ export default function AddSubscriptionDialog({
         setSubmitting(true);
         setResults(null);
         try {
-            const res = await noAuthFetch<AddWeiboSubscriptionResult>(
-                '/weibo/subscriptions/add',
-                {
-                    method: 'POST',
-                    body: JSON.stringify({ uid: uidValue, targets }),
-                },
-            );
-            if (res.code !== 0 || !res.data) {
-                throw new Error(res.message || '新增订阅失败');
+            const res = await webuiApi.addSubscriptions({
+                uid: uidValue,
+                targets,
+            });
+            if (!res.ok) {
+                throw new Error(res.message);
             }
 
             const { results: list } = res.data;

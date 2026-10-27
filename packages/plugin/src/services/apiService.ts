@@ -24,7 +24,9 @@ import { WeiboCursorStore } from '../store/WeiboCursorStore';
 import { WeiboMonitorStore } from '../store/WeiboMonitorStore';
 import type {
     PluginConfig,
+    SessionInfo,
     SessionType,
+    WeiboStatus,
     WeiboSubscriptionTargetInput,
 } from '../types';
 import {
@@ -277,16 +279,19 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
 
     /** 全部订阅 (WebUI 只读列表) */
     router.getNoAuth('/weibo/subscriptions', (_req, res) => {
-        const data = weiboMonitorService.all();
+        const subscriptions = weiboMonitorService.all();
         // 历史数据与头像 URL 变更项在后台补拉; 前端据 pendingAvatars 再取一次
         let pendingAvatars = 0;
-        for (const item of data) {
+        for (const item of subscriptions) {
             if (!weiboAvatarService.needsRefresh(item.uid)) continue;
             pendingAvatars += 1;
             weiboAvatarService.triggerEnsure(item.uid, item.avatar);
         }
 
-        res.json({ code: 0, data, pendingAvatars });
+        res.json({
+            code: 0,
+            data: { subscriptions, pendingAvatars },
+        });
     });
 
     /** 本地头像副本 (无鉴权: WebUI 的 img 无法携带 Bearer) */
@@ -571,19 +576,10 @@ interface NapCatFriendInfo {
     remark?: string;
 }
 
-interface HostSessionInfo {
-    type: SessionType;
-    id: string;
-    name: string;
-    enabled: boolean;
-    memberCount?: number;
-    maxMemberCount?: number;
-}
-
 /** 拉取宿主的群/好友列表并归一化 (会话页与上限页共用) */
 async function loadHostSessions(
     ctx: NapCatPluginContext,
-): Promise<HostSessionInfo[]> {
+): Promise<SessionInfo[]> {
     const { groups, friends } = await fetchNapCatSessions(ctx);
 
     const groupSessions = groups.map((group) => {
@@ -641,7 +637,7 @@ async function fetchNapCatSessions(
     return { groups: groups || [], friends: friends || [] };
 }
 
-function buildWeiboStatus(): Record<string, unknown> {
+function buildWeiboStatus(): WeiboStatus {
     const monitors = WeiboMonitorStore.getInstance().list();
     const cookie = WeiboCookieStore.getInstance().getData();
     const cursorStore = WeiboCursorStore.getInstance();

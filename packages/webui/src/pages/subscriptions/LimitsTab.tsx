@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     WEIBO_LIMIT_DEFAULTS,
     WEIBO_LIMIT_MAX,
@@ -9,13 +9,13 @@ import {
     IconRefresh,
     IconSearch,
 } from '../../components/Icons';
+import { useResource } from '../../hooks/useResource';
 import { showToast } from '../../hooks/useToast';
 import type {
     SessionType,
     WeiboLimitRow,
     WeiboLimitsView,
 } from '../../types';
-import { noAuthFetch, readApiErrorMessage } from '../../utils/api';
 import {
     isValidLimitValue,
     limitText,
@@ -25,6 +25,7 @@ import {
     sessionNameOf,
     sortSessionRows,
 } from '../../utils/subscriptionView';
+import { webuiApi } from '../../utils/webuiApi';
 
 interface LimitsTabProps {
     sessionNames: Map<string, string>;
@@ -40,46 +41,30 @@ const EMPTY_VIEW: WeiboLimitsView = {
 };
 
 export default function LimitsTab({ sessionNames }: LimitsTabProps) {
-    const [view, setView] = useState<WeiboLimitsView>(EMPTY_VIEW);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<SessionType>('group');
     const [keyword, setKeyword] = useState('');
     const [drafts, setDrafts] = useState<Record<string, string>>({});
     const [savingKey, setSavingKey] = useState<string | null>(null);
 
-    const fetchView = useCallback(async () => {
-        try {
-            const res =
-                await noAuthFetch<WeiboLimitsView>('/weibo/limits');
-            if (res.code !== 0 || !res.data) {
-                throw new Error(res.message || '读取失败');
-            }
-            setView(res.data);
-            setError(null);
-            const next: Record<string, string> = {};
-            for (const row of res.data.sessions) {
-                next[sessionKey(row.type, row.id)] =
-                    row.override === undefined
-                        ? ''
-                        : String(row.override);
-            }
-            setDrafts(next);
-        } catch (err) {
-            setError(readApiErrorMessage(err));
-        }
-    }, []);
+    const loadLimits = useCallback(() => webuiApi.getLimits(), []);
+    const resource = useResource(loadLimits);
+    const view = resource.data ?? EMPTY_VIEW;
+    const loading = resource.loading && resource.data === null;
+    const refreshing = resource.loading && resource.data !== null;
+    const error = resource.error;
+    const refresh = resource.refresh;
 
     useEffect(() => {
-        fetchView().finally(() => setLoading(false));
-    }, [fetchView]);
-
-    const refresh = async () => {
-        setRefreshing(true);
-        await fetchView();
-        setRefreshing(false);
-    };
+        if (!resource.data) return;
+        const next: Record<string, string> = {};
+        for (const row of resource.data.sessions) {
+            next[sessionKey(row.type, row.id)] =
+                row.override === undefined
+                    ? ''
+                    : String(row.override);
+        }
+        setDrafts(next);
+    }, [resource.data]);
 
     const groupRows = useMemo(
         () =>
@@ -123,18 +108,17 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
         }
         setSavingKey(key);
         try {
-            await noAuthFetch('/weibo/limits', {
-                method: 'POST',
-                body: JSON.stringify({
-                    type: row.type,
-                    id: row.id,
-                    max: Number(trimmed),
-                }),
+            const result = await webuiApi.setLimit({
+                type: row.type,
+                id: row.id,
+                max: Number(trimmed),
             });
+            if (!result.ok) {
+                showToast(result.message, 'error');
+                return;
+            }
             showToast('已更新订阅上限', 'success');
-            await fetchView();
-        } catch (err) {
-            showToast(readApiErrorMessage(err), 'error');
+            await refresh();
         } finally {
             setSavingKey(null);
         }
@@ -143,16 +127,16 @@ export default function LimitsTab({ sessionNames }: LimitsTabProps) {
     const reset = async (row: WeiboLimitRow) => {
         setSavingKey(sessionKey(row.type, row.id));
         try {
-            await noAuthFetch(
-                `/weibo/limits/${row.type}/${encodeURIComponent(
-                    row.id,
-                )}`,
-                { method: 'DELETE' },
-            );
+            const result = await webuiApi.clearLimit({
+                type: row.type,
+                id: row.id,
+            });
+            if (!result.ok) {
+                showToast(result.message, 'error');
+                return;
+            }
             showToast('已恢复默认上限', 'success');
-            await fetchView();
-        } catch (err) {
-            showToast(readApiErrorMessage(err), 'error');
+            await refresh();
         } finally {
             setSavingKey(null);
         }

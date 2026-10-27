@@ -34,6 +34,7 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 | [adr/0012-subscription-round-module.md](./adr/0012-subscription-round-module.md) | 单轮拉取抽为深模块 (暂停结算 + 单订阅投递) |
 | [adr/0013-post-delivery-module.md](./adr/0013-post-delivery-module.md) | 推送呈现与投递收为深模块 (prepare + deliver) |
 | [adr/0014-session-capability-projection.md](./adr/0014-session-capability-projection.md) | 会话能力单一投影 (buildSessionCapabilities) |
+| [adr/0015-webui-typed-api-client.md](./adr/0015-webui-typed-api-client.md) | WebUI 类型化客户端与统一资源取数 (ApiResult + useResource) |
 
 判据与写法见 [development-pattern.md](./development-pattern.md) 的"架构决策记录 (ADR) 纪律"。
 

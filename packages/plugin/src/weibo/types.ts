@@ -5,7 +5,18 @@
  * 未使用的部分不建模, 避免把上游细节扩散到业务层。
  */
 
-import type { SessionType } from '../types';
+import type { LoginProbeResult, SessionType } from '../types';
+
+export type {
+    LoginProbeResult,
+    PollingState,
+    WeiboBrowserStatus as BrowserStatus,
+    WeiboCookieStatus,
+    WeiboInstallState as InstallState,
+    WeiboPollingStatus,
+    WeiboSubscription as WeiboSubscriptionView,
+    WeiboTargetStatus,
+} from '../types';
 
 /** 订阅目标 (某个已启用会话) */
 export interface WeiboMonitorTarget {
@@ -241,9 +252,6 @@ export interface WeiboLongTextResponse {
     [key: string]: unknown;
 }
 
-/** 登录态探测结论 */
-export type LoginProbeResult = 'valid' | 'invalid' | 'inconclusive';
-
 /** Cookie 持久化 (数据文件 `weibo-cookie.json`) */
 export interface WeiboCookieData {
     /** Playwright storageState 的 cookies (origins 不参与微博接口) */
@@ -294,89 +302,4 @@ export interface StoredCookie {
     httpOnly: boolean;
     secure: boolean;
     sameSite?: 'Strict' | 'Lax' | 'None';
-}
-
-/** 单博主运行时状态 (供状态页展示) */
-export interface WeiboTargetStatus {
-    uid: string;
-    screenName: string;
-    lastError: string | null;
-    lastPushedAt: number | null;
-    watermark: string | null;
-}
-
-/**
- * 轮询状态 (当前处境的唯一答案)
- *
- * 由事实纯函数派生, 优先级固定; 状态不是错误记录, 错误另见 `lastError`。
- */
-export type PollingState =
-    | 'stopped'
-    | 'unconfigured'
-    | 'invalid'
-    | 'backoff'
-    | 'idle'
-    | 'error'
-    | 'running';
-
-/** 轮询运行时状态 */
-export interface WeiboPollingStatus {
-    state: PollingState;
-    running: boolean;
-    intervalMinutes: number;
-    /** 排期口径文案, 如「每小时整点」「每 10 分钟整分」「固定间隔 7 分钟」 */
-    scheduleLabel: string;
-    lastPollAt: number | null;
-    nextPollAt: number | null;
-    backoffUntil: number | null;
-    lastError: string | null;
-    lastErrorAt: number | null;
-}
-
-/** Cookie 运行时状态 (不返回 cookie 值, 仅返回名称供掩码展示) */
-export interface WeiboCookieStatus {
-    configured: boolean;
-    /** Cookie 名列表 (值永不出后端) */
-    names: string[];
-    invalid: boolean;
-    invalidSince: number | null;
-    lastSuccessAt: number | null;
-    lastValidatedAt: number | null;
-    lastRefreshAt: number | null;
-    lastKeepAliveAt: number | null;
-    lastProbeAt: number | null;
-    lastProbeResult: LoginProbeResult | null;
-    lastProbeMessage: string | null;
-    invalidNotifiedAt: number | null;
-    keepAliveFailureCount: number;
-    keepAliveInconclusiveCount: number;
-    runtimeAlertedAt: number | null;
-}
-
-/** 浏览器状态 */
-export interface BrowserStatus {
-    available: boolean;
-    source: 'configured' | 'shared' | 'system' | 'none';
-    executablePath: string | null;
-    version: string | null;
-    installed: boolean;
-    error: string | null;
-}
-
-/** 安装进度 */
-export interface InstallState {
-    running: boolean;
-    percent: number;
-    message: string;
-    error: string | null;
-}
-
-/** API 安全返回的订阅视图 */
-export interface WeiboSubscriptionView {
-    uid: string;
-    screenName: string;
-    avatar: string;
-    /** 本地读图路由; 未缓存时为 null, 前端回退 `avatar` */
-    avatarUrl: string | null;
-    targets: Array<WeiboMonitorTarget & { enabled: boolean }>;
 }
