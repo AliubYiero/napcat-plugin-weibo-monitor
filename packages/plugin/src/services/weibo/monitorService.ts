@@ -26,6 +26,7 @@ import { browserService } from '../browser/service';
 import { sessionConfigService } from '../sessionConfigService';
 import { weiboApiService } from './apiService';
 import { weiboAvatarService } from './avatarService';
+import type { DeliveryResult } from './postDelivery';
 import { weiboPushService } from './pushService';
 import { weiboRuntime } from './runtimeStatus';
 
@@ -278,7 +279,7 @@ class WeiboMonitorService {
         post: WeiboPost,
         uid: string,
         target: WeiboMonitorTarget,
-    ): Promise<{ pushed: number; failed: number }> {
+    ): Promise<DeliveryResult> {
         const existing = this.store.get(uid);
         const monitor: WeiboMonitor = existing ?? {
             uid,

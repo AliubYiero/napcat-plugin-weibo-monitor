@@ -35,11 +35,11 @@ export const getHandler: InstructionHandler = async (
         return;
     }
 
-    const sent = await weiboPostService.deliver(
+    const delivery = await weiboPostService.deliver(
         result.post,
         userRole.from,
     );
-    if (!sent) {
+    if (delivery.pushed === 0) {
         await sendReply(ctx, event, SEND_FAILED);
     }
 };

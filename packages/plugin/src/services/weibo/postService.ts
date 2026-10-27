@@ -1,6 +1,5 @@
 import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
-import { hasTruncationSignal } from '../../weibo/longText';
 import {
     normalizePostId,
     PostCooldown,
@@ -14,8 +13,10 @@ import {
     type WeiboStatusFailure,
     weiboApiService,
 } from './apiService';
-import { weiboLongTextService } from './longTextService';
-import { weiboPushService } from './pushService';
+import {
+    type DeliveryResult,
+    weiboPostDelivery,
+} from './postDelivery';
 
 export type PostReadFailure =
     | 'invalid_id'
@@ -70,12 +71,7 @@ class WeiboPostService {
                 );
             }
 
-            const post = hasTruncationSignal(status.post)
-                ? await weiboLongTextService.hydrateStatus(
-                      status.post,
-                  )
-                : status.post;
-            return { ok: true, post };
+            return { ok: true, post: status.post };
         } catch (error) {
             pluginState.logger.warn('按 ID 读取微博失败:', error);
             return fail('failed', messageOf(error));
@@ -85,12 +81,18 @@ class WeiboPostService {
     async deliver(
         post: WeiboPost,
         target: WeiboMonitorTarget,
-    ): Promise<boolean> {
+    ): Promise<DeliveryResult> {
         try {
-            return await weiboPushService.pushPostTo(post, target);
+            const prepared = await weiboPostDelivery.prepare(post, {
+                source: 'status',
+            });
+            return await weiboPostDelivery.deliver(
+                [target],
+                prepared,
+            );
         } catch (error) {
             pluginState.logger.warn('按 ID 发送微博失败:', error);
-            return false;
+            return { pushed: 0, failed: 1 };
         }
     }
 }
