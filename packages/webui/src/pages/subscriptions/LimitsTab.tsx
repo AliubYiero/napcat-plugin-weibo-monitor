@@ -1,5 +1,10 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    WEIBO_LIMIT_DEFAULTS,
+    WEIBO_LIMIT_MAX,
+    WEIBO_LIMIT_MIN,
+} from 'shared';
+import {
     IconAlert,
     IconRefresh,
     IconSearch,
@@ -27,9 +32,9 @@ interface LimitsTabProps {
 
 const EMPTY_VIEW: WeiboLimitsView = {
     meta: {
-        min: 0,
-        max: 50,
-        defaults: { group: 1, private: 0 },
+        min: WEIBO_LIMIT_MIN,
+        max: WEIBO_LIMIT_MAX,
+        defaults: { ...WEIBO_LIMIT_DEFAULTS },
     },
     sessions: [],
 };

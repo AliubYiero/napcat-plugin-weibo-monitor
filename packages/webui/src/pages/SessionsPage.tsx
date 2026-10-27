@@ -11,12 +11,13 @@ import {
 import { showToast } from '../hooks/useToast';
 import type { SessionInfo } from '../types';
 import { noAuthFetch } from '../utils/api';
+import { sessionKey as sessionTargetKey } from '../utils/subscriptionView';
 
 type TabType = 'group' | 'private';
 
 /** 会话唯一键（群号与 QQ 号可能重号，需带类型） */
 function sessionKey(session: SessionInfo): string {
-    return `${session.type}:${session.id}`;
+    return sessionTargetKey(session.type, session.id);
 }
 
 export default function SessionsPage() {

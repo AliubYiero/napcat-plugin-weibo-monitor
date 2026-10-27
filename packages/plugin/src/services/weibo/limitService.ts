@@ -3,22 +3,22 @@
  *
  * 会话上限可由超管通过 `#weibo max <n>` 或 WebUI 调整; 群默认 1, 私聊默认 0,
  * 超管私聊无上限。显式覆盖存于会话级配置, 清除后回落类型默认值。
+ * 已用 / 上限 / 剩余统一由 shared 的 `buildSessionCapabilities` 推导。
  */
 
+import {
+    buildSessionCapabilities,
+    type SessionCapability,
+    type SessionCapabilitySession,
+    WEIBO_LIMIT_DEFAULTS,
+    WEIBO_LIMIT_MAX,
+    WEIBO_LIMIT_MIN,
+} from 'shared';
 import { pluginState } from '../../core/state';
 import { WeiboMonitorStore } from '../../store/WeiboMonitorStore';
-import type {
-    SessionType,
-    WeiboLimitRow,
-    WeiboLimitsView,
-} from '../../types';
+import type { WeiboLimitRow, WeiboLimitsView } from '../../types';
 import type { WeiboMonitorTarget } from '../../weibo/types';
 import { sessionConfigService } from '../sessionConfigService';
-import {
-    DEFAULT_GROUP_LIMIT,
-    DEFAULT_PRIVATE_LIMIT,
-    effectiveLimit,
-} from './monitorService';
 
 export interface LimitView {
     /** 有效上限; Infinity 表示无上限 */
@@ -27,18 +27,29 @@ export interface LimitView {
 }
 
 /** 上限允许的最小值 (0 表示禁止新增订阅) */
-export const MIN_LIMIT = 0;
+export const MIN_LIMIT = WEIBO_LIMIT_MIN;
 /** 上限允许的最大值 */
-export const MAX_LIMIT = 50;
+export const MAX_LIMIT = WEIBO_LIMIT_MAX;
 /** 兼容旧调用方的别名 */
 export const MAX_GROUP_LIMIT = MAX_LIMIT;
 
 class WeiboLimitService {
     get(target: WeiboMonitorTarget): LimitView {
-        const store = WeiboMonitorStore.getInstance();
+        const [capability] = this.build([
+            {
+                type: target.type,
+                id: target.id,
+                enabled: sessionConfigService.isSessionEnabled(
+                    target.id,
+                    target.type,
+                ),
+            },
+        ]);
         return {
-            limit: effectiveLimit(target),
-            used: store.countForTarget(target),
+            limit: capability.unlimited
+                ? Number.POSITIVE_INFINITY
+                : (capability.limit ?? 0),
+            used: capability.used,
         };
     }
 
@@ -50,7 +61,7 @@ class WeiboLimitService {
         if (raw > MAX_LIMIT) {
             throw new Error(`上限不能超过 ${MAX_LIMIT}`);
         }
-        if (isUnlimited(target)) {
+        if (this.get(target).limit === Number.POSITIVE_INFINITY) {
             throw new Error('超级管理员私聊无上限, 无需设置');
         }
         sessionConfigService.setWeiboLimit(
@@ -67,45 +78,46 @@ class WeiboLimitService {
 
     /** 全部现有会话的上限视图 (用于 WebUI「订阅上限」tab) */
     view(
-        sessions: Array<{
-            type: SessionType;
-            id: string;
-            enabled: boolean;
-        }>,
+        sessions: readonly SessionCapabilitySession[],
     ): WeiboLimitsView {
-        const store = WeiboMonitorStore.getInstance();
-
-        const rows: WeiboLimitRow[] = sessions.map((session) => {
-            const target: WeiboMonitorTarget = {
-                type: session.type,
-                id: session.id,
-            };
-            const effective = effectiveLimit(target);
-            return {
-                type: session.type,
-                id: session.id,
-                used: store.countForTarget(target),
-                override: sessionConfigService.getWeiboLimitOverride(
-                    session.id,
-                    session.type,
-                ),
-                limit: Number.isFinite(effective) ? effective : null,
-                unlimited: !Number.isFinite(effective),
-                enabled: session.enabled,
-            };
-        });
+        const rows: WeiboLimitRow[] = this.build(sessions).map(
+            (capability) => toLimitRow(capability),
+        );
 
         return {
             meta: {
                 min: MIN_LIMIT,
                 max: MAX_LIMIT,
-                defaults: {
-                    group: DEFAULT_GROUP_LIMIT,
-                    private: DEFAULT_PRIVATE_LIMIT,
-                },
+                defaults: { ...WEIBO_LIMIT_DEFAULTS },
             },
             sessions: rows,
         };
+    }
+
+    private build(
+        sessions: readonly SessionCapabilitySession[],
+    ): SessionCapability[] {
+        const store = WeiboMonitorStore.getInstance();
+        const subscriptions = store.list().map((monitor) => ({
+            uid: monitor.uid,
+            targets: monitor.to,
+        }));
+        const overrides = sessions.flatMap((session) => {
+            const limit = sessionConfigService.getWeiboLimitOverride(
+                session.id,
+                session.type,
+            );
+            return limit === undefined
+                ? []
+                : [{ type: session.type, id: session.id, limit }];
+        });
+
+        return buildSessionCapabilities({
+            sessions,
+            subscriptions,
+            overrides,
+            adminUsers: pluginState.config.adminUsers,
+        });
     }
 }
 
@@ -115,10 +127,17 @@ export function formatLimit(limit: number): string {
     return Number.isFinite(limit) ? String(limit) : '无上限';
 }
 
-/** 超级管理员本人的私聊无上限 */
-function isUnlimited(target: WeiboMonitorTarget): boolean {
-    return (
-        target.type === 'private' &&
-        pluginState.config.adminUsers.includes(target.id)
-    );
+function toLimitRow(capability: SessionCapability): WeiboLimitRow {
+    const row: WeiboLimitRow = {
+        type: capability.type,
+        id: capability.id,
+        used: capability.used,
+        limit: capability.limit,
+        unlimited: capability.unlimited,
+        enabled: capability.enabled,
+    };
+    if (capability.override !== undefined) {
+        row.override = capability.override;
+    }
+    return row;
 }

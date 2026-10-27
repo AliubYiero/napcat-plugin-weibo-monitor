@@ -48,11 +48,6 @@ export class WeiboMonitorStore extends BaseStore<WeiboMonitor> {
         );
     }
 
-    /** 某会话已订阅数量 */
-    countForTarget(target: WeiboMonitorTarget): number {
-        return this.listForTarget(target).length;
-    }
-
     /** 博主被哪些会话订阅 */
     targetsOf(uid: string): WeiboMonitorTarget[] {
         return [...(this.get(uid)?.to ?? [])];

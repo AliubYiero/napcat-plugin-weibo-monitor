@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { buildSessionCapabilities } from 'shared';
 import Checkbox from '../../components/form/Checkbox';
 import { IconAlert, IconCheck, IconX } from '../../components/Icons';
 import { showToast } from '../../hooks/useToast';
@@ -44,9 +45,7 @@ export default function AddSubscriptionDialog({
 }: AddSubscriptionDialogProps) {
     const [uid, setUid] = useState('');
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [limits, setLimits] = useState<Map<string, WeiboLimitRow>>(
-        new Map(),
-    );
+    const [limitRows, setLimitRows] = useState<WeiboLimitRow[]>([]);
     const [limitsLoading, setLimitsLoading] = useState(false);
     const [limitsError, setLimitsError] = useState<string | null>(
         null,
@@ -65,7 +64,7 @@ export default function AddSubscriptionDialog({
         setSelected(new Set());
         setResults(null);
         setSubmitting(false);
-        setLimits(new Map());
+        setLimitRows([]);
         setStatus(null);
         setStatusError(false);
         setLimitsLoading(true);
@@ -86,11 +85,7 @@ export default function AddSubscriptionDialog({
                 limitsResult.value.code === 0 &&
                 limitsResult.value.data
             ) {
-                const map = new Map<string, WeiboLimitRow>();
-                for (const row of limitsResult.value.data.sessions) {
-                    map.set(sessionKey(row.type, row.id), row);
-                }
-                setLimits(map);
+                setLimitRows(limitsResult.value.data.sessions);
             } else {
                 setLimitsError(
                     limitsResult.status === 'rejected'
@@ -131,25 +126,57 @@ export default function AddSubscriptionDialog({
         [sessions],
     );
 
-    const subscribedKeys = useMemo(() => {
-        const keys = new Set<string>();
-        if (!uidValid) return keys;
-        const item = subscriptions.find(
-            (subscription) => subscription.uid === uidValue,
-        );
-        if (!item) return keys;
-        for (const target of item.targets) {
-            keys.add(sessionKey(target.type, target.id));
-        }
-        return keys;
-    }, [subscriptions, uidValid, uidValue]);
+    const capabilities = useMemo(
+        () =>
+            buildSessionCapabilities({
+                sessions: sessions.map((session) => ({
+                    type: session.type,
+                    id: session.id,
+                    enabled: session.enabled,
+                })),
+                subscriptions,
+                overrides: limitRows.flatMap((row) =>
+                    row.override === undefined
+                        ? []
+                        : [
+                              {
+                                  type: row.type,
+                                  id: row.id,
+                                  limit: row.override,
+                              },
+                          ],
+                ),
+                adminUsers: status?.config.adminUsers ?? [],
+                subjectUid: uidValid ? uidValue : null,
+            }),
+        [
+            sessions,
+            subscriptions,
+            limitRows,
+            status,
+            uidValid,
+            uidValue,
+        ],
+    );
+
+    const capabilityByKey = useMemo(
+        () =>
+            new Map(
+                capabilities.map((capability) => [
+                    sessionKey(capability.type, capability.id),
+                    capability,
+                ]),
+            ),
+        [capabilities],
+    );
 
     useEffect(() => {
         setSelected((prev) => {
             let changed = false;
             const next = new Set<string>();
             for (const key of prev) {
-                if (subscribedKeys.has(key)) {
+                const capability = capabilityByKey.get(key);
+                if (!capability || capability.subscribed) {
                     changed = true;
                 } else {
                     next.add(key);
@@ -157,18 +184,7 @@ export default function AddSubscriptionDialog({
             }
             return changed ? next : prev;
         });
-    }, [subscribedKeys]);
-
-    const usedByKey = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const subscription of subscriptions) {
-            for (const target of subscription.targets) {
-                const key = sessionKey(target.type, target.id);
-                map.set(key, (map.get(key) ?? 0) + 1);
-            }
-        }
-        return map;
-    }, [subscriptions]);
+    }, [capabilityByKey]);
 
     const targetByKey = useMemo(() => {
         const map = new Map<string, WeiboSubscriptionTargetInput>();
@@ -181,27 +197,13 @@ export default function AddSubscriptionDialog({
         return map;
     }, [sessions]);
 
-    const rowState = (session: SessionInfo) => {
-        const key = sessionKey(session.type, session.id);
-        const row = limits.get(key);
-        const used = row?.used ?? usedByKey.get(key) ?? 0;
-        const limit = row ? row.limit : null;
-        const unlimited = row?.unlimited ?? false;
-        const subscribed = subscribedKeys.has(key);
-        const full = !unlimited && limit !== null && used >= limit;
-        return {
-            key,
-            used,
-            limit,
-            unlimited,
-            subscribed,
-            full,
-            selectable: !subscribed && !full,
-        };
-    };
+    const capabilityOf = (session: SessionInfo) =>
+        capabilityByKey.get(sessionKey(session.type, session.id));
 
     const selectableKeys = enabledSessions
-        .filter((session) => rowState(session).selectable)
+        .filter(
+            (session) => capabilityOf(session)?.selectable === true,
+        )
         .map((session) => sessionKey(session.type, session.id));
 
     const allSelected =
@@ -314,8 +316,8 @@ export default function AddSubscriptionDialog({
     const emptyAllSubscribed =
         uidValid &&
         enabledSessions.length > 0 &&
-        enabledSessions.every((session) =>
-            subscribedKeys.has(sessionKey(session.type, session.id)),
+        enabledSessions.every(
+            (session) => capabilityOf(session)?.subscribed === true,
         );
 
     return createPortal(
@@ -446,39 +448,48 @@ export default function AddSubscriptionDialog({
                                 <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800/50">
                                     {enabledSessions.map(
                                         (session) => {
-                                            const state =
-                                                rowState(session);
+                                            const capability =
+                                                capabilityOf(session);
+                                            if (!capability)
+                                                return null;
+                                            const key = sessionKey(
+                                                capability.type,
+                                                capability.id,
+                                            );
                                             const label =
                                                 session.name ||
                                                 sessionFallbackName(
                                                     session.type,
                                                 );
+                                            const full =
+                                                capability.limit !==
+                                                    null &&
+                                                capability.used >=
+                                                    capability.limit;
                                             return (
                                                 <label
-                                                    key={state.key}
-                                                    htmlFor={
-                                                        state.key
-                                                    }
+                                                    key={key}
+                                                    htmlFor={key}
                                                     className={`flex items-center gap-2 px-3 py-2 text-xs ${
-                                                        state.selectable
+                                                        capability.selectable
                                                             ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5'
                                                             : 'opacity-60'
                                                     }`}
                                                 >
                                                     <Checkbox
-                                                        id={state.key}
+                                                        id={key}
                                                         checked={selected.has(
-                                                            state.key,
+                                                            key,
                                                         )}
                                                         disabled={
-                                                            !state.selectable ||
+                                                            !capability.selectable ||
                                                             submitting
                                                         }
                                                         onChange={(
                                                             checked,
                                                         ) =>
                                                             toggleOne(
-                                                                state.key,
+                                                                key,
                                                                 checked,
                                                             )
                                                         }
@@ -497,26 +508,20 @@ export default function AddSubscriptionDialog({
                                                     </span>
                                                     <span
                                                         className={`shrink-0 text-[11px] ${
-                                                            state.subscribed
+                                                            capability.subscribed
                                                                 ? 'text-primary'
-                                                                : state.full
+                                                                : full
                                                                   ? 'text-amber-600 dark:text-amber-400'
                                                                   : 'text-gray-400'
                                                         }`}
                                                     >
-                                                        {state.subscribed
+                                                        {capability.subscribed
                                                             ? '已订阅'
-                                                            : state.full
+                                                            : full
                                                               ? '已满'
-                                                              : `已用 ${state.used}/${
-                                                                    state.unlimited
-                                                                        ? limitText(
-                                                                              null,
-                                                                          )
-                                                                        : limitText(
-                                                                              state.limit,
-                                                                          )
-                                                                }`}
+                                                              : `已用 ${capability.used}/${limitText(
+                                                                    capability.limit,
+                                                                )}`}
                                                     </span>
                                                 </label>
                                             );

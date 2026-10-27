@@ -52,20 +52,6 @@ class SessionConfigService {
         );
     }
 
-    /**
-     * 本会话的订阅上限。
-     *
-     * 优先读显式配置; 未配置或值非法时用调用方给的默认值
-     * (群聊 1, 私聊 0; 超管私聊由上层跳过上限检查)。
-     */
-    getWeiboLimit(
-        id: string,
-        type: SessionType,
-        fallback: number,
-    ): number {
-        return this.getWeiboLimitOverride(id, type) ?? fallback;
-    }
-
     /** 本会话显式写入的上限覆盖; 未覆盖时返回 undefined */
     getWeiboLimitOverride(
         id: string,

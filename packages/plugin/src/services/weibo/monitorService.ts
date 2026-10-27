@@ -5,6 +5,7 @@
  * 都在这里。WebUI 的批量新增复用同一套规则, 逐目标给出结果。
  */
 
+import { buildSessionCapabilities, sessionTargetKey } from 'shared';
 import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import { WeiboCursorStore } from '../../store/WeiboCursorStore';
@@ -26,12 +27,10 @@ import { browserService } from '../browser/service';
 import { sessionConfigService } from '../sessionConfigService';
 import { weiboApiService } from './apiService';
 import { weiboAvatarService } from './avatarService';
+import { formatLimit } from './limitService';
 import type { DeliveryResult } from './postDelivery';
 import { weiboPushService } from './pushService';
 import { weiboRuntime } from './runtimeStatus';
-
-export const DEFAULT_GROUP_LIMIT = 1;
-export const DEFAULT_PRIVATE_LIMIT = 0;
 
 export interface AddResult {
     monitor: WeiboMonitor;
@@ -104,7 +103,7 @@ class WeiboMonitorService {
             target: WeiboSubscriptionTargetInput,
             failure: TargetFailure,
         ): void => {
-            results.set(targetKey(target), {
+            results.set(sessionTargetKey(target), {
                 type: target.type,
                 id: target.id,
                 ok: false,
@@ -167,7 +166,7 @@ class WeiboMonitorService {
                         target,
                     );
                     if (added) {
-                        results.set(targetKey(target), {
+                        results.set(sessionTargetKey(target), {
                             type: target.type,
                             id: target.id,
                             ok: true,
@@ -317,32 +316,54 @@ class WeiboMonitorService {
         uid: string,
         target: WeiboMonitorTarget,
     ): TargetFailure | null {
-        if (
-            !sessionConfigService.isSessionEnabled(
-                target.id,
-                target.type,
-            )
-        ) {
+        const override = sessionConfigService.getWeiboLimitOverride(
+            target.id,
+            target.type,
+        );
+        const [capability] = buildSessionCapabilities({
+            sessions: [
+                {
+                    type: target.type,
+                    id: target.id,
+                    enabled: sessionConfigService.isSessionEnabled(
+                        target.id,
+                        target.type,
+                    ),
+                },
+            ],
+            subscriptions: this.store.list().map((monitor) => ({
+                uid: monitor.uid,
+                targets: monitor.to,
+            })),
+            overrides:
+                override === undefined
+                    ? []
+                    : [{ ...target, limit: override }],
+            adminUsers: pluginState.config.adminUsers,
+            subjectUid: uid,
+        });
+
+        if (capability.reason === 'session_disabled') {
             return {
                 code: 'session_disabled',
                 message: '会话未启用, 请先在会话管理页开启',
             };
         }
-
-        const existing = this.store.get(uid);
-        if (existing?.to.some((item) => sameTarget(item, target))) {
+        if (capability.reason === 'already_subscribed') {
             return {
                 code: 'duplicate',
-                message: `本会话已订阅 ${existing.screenName}`,
+                message: `本会话已订阅 ${
+                    this.store.get(uid)?.screenName ?? '该博主'
+                }`,
             };
         }
-
-        const limit = effectiveLimit(target);
-        const used = this.store.countForTarget(target);
-        if (used >= limit) {
+        if (capability.reason === 'limit_reached') {
+            const limit = capability.unlimited
+                ? Number.POSITIVE_INFINITY
+                : (capability.limit ?? 0);
             return {
                 code: 'limit_reached',
-                message: `本会话最多订阅 ${formatLimit(limit)} 个博主, 当前已订阅 ${used} 个`,
+                message: `本会话最多订阅 ${formatLimit(limit)} 个博主, 当前已订阅 ${capability.used} 个`,
             };
         }
 
@@ -430,36 +451,6 @@ export function normalizeUid(raw: string): string | null {
     return /^\d{3,20}$/.test(uid) ? uid : null;
 }
 
-export function sameTarget(
-    left: WeiboMonitorTarget,
-    right: WeiboMonitorTarget,
-): boolean {
-    return left.type === right.type && left.id === right.id;
-}
-
-/** 会话的有效订阅上限; 超管私聊无上限 */
-export function effectiveLimit(target: WeiboMonitorTarget): number {
-    if (
-        target.type === 'private' &&
-        pluginState.config.adminUsers.includes(target.id)
-    ) {
-        return Number.POSITIVE_INFINITY;
-    }
-    const fallback =
-        target.type === 'group'
-            ? DEFAULT_GROUP_LIMIT
-            : DEFAULT_PRIVATE_LIMIT;
-    return sessionConfigService.getWeiboLimit(
-        target.id,
-        target.type,
-        fallback,
-    );
-}
-
-function targetKey(target: WeiboSubscriptionTargetInput): string {
-    return `${target.type}:${target.id}`;
-}
-
 /** 去重并丢弃空 ID (路由层已校验类型) */
 function dedupeTargets(
     targets: WeiboSubscriptionTargetInput[],
@@ -468,7 +459,7 @@ function dedupeTargets(
     const result: WeiboMonitorTarget[] = [];
     for (const target of targets) {
         if (!target.id) continue;
-        const key = targetKey(target);
+        const key = sessionTargetKey(target);
         if (seen.has(key)) continue;
         seen.add(key);
         result.push({ type: target.type, id: target.id });
@@ -482,7 +473,7 @@ function orderedResults(
 ): WeiboSubscriptionTargetResult[] {
     return targets.map(
         (target) =>
-            results.get(targetKey(target)) ?? {
+            results.get(sessionTargetKey(target)) ?? {
                 type: target.type,
                 id: target.id,
                 ok: false,
@@ -490,8 +481,4 @@ function orderedResults(
                 message: '未处理',
             },
     );
-}
-
-function formatLimit(limit: number): string {
-    return Number.isFinite(limit) ? String(limit) : '无上限';
 }

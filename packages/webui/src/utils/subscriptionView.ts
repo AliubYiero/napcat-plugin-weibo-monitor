@@ -4,6 +4,7 @@
  * 会话名称映射、关键词筛选与上限文案; 不触碰 React 或网络。
  */
 
+import { sessionTargetKey } from 'shared';
 import type {
     SessionInfo,
     SessionType,
@@ -12,7 +13,7 @@ import type {
 
 /** 会话唯一键（群号与 QQ 号可能重号，需带类型） */
 export function sessionKey(type: SessionType, id: string): string {
-    return `${type}:${id}`;
+    return sessionTargetKey({ type, id });
 }
 
 /** type:id → 会话名 (无名称时不写入) */

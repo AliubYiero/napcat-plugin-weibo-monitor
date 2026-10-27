@@ -10,6 +10,8 @@ export * from './config';
 export * from './displayTokens';
 // 帮助面板类型 (与上游 napcat-help-generate 手工同步)
 export * from './help';
+// 会话能力的单一投影 (宿主会话 + 订阅 + 上限覆盖 + 超管名单)
+export * from './sessionCapabilities';
 // WebUI 骨架元信息 (页面清单 + PageId)
 export * from './ui';
 // 订阅与订阅上限的跨包契约

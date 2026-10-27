@@ -1,3 +1,4 @@
+import { sessionTargetKey } from 'shared';
 import { pluginState } from '../../core/state';
 import { WeiboCookieStore } from '../../store/WeiboCookieStore';
 import {
@@ -56,7 +57,7 @@ class WeiboPostService {
             return fail('failed', '浏览器不可用');
         }
 
-        const key = `${target.type}:${target.id}`;
+        const key = sessionTargetKey(target);
         if (this.cooldown.isCoolingDown(key)) {
             return fail('cooldown');
         }

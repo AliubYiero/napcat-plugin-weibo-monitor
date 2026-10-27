@@ -116,41 +116,8 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     /** 获取会话列表（群 + 好友，附带各会话启用状态） */
     router.getNoAuth('/sessions', async (_req, res) => {
         try {
-            const { groups, friends } =
-                await fetchNapCatSessions(ctx);
-
-            const groupSessions = groups.map((group) => {
-                const id = String(group.group_id);
-                return {
-                    id,
-                    type: 'group' as const,
-                    name: group.group_name,
-                    enabled: sessionConfigService.isSessionEnabled(
-                        id,
-                        'group',
-                    ),
-                    memberCount: group.member_count,
-                    maxMemberCount: group.max_member_count,
-                };
-            });
-
-            const friendSessions = friends.map((friend) => {
-                const id = String(friend.user_id);
-                return {
-                    id,
-                    type: 'private' as const,
-                    name: friend.remark || friend.nickname,
-                    enabled: sessionConfigService.isSessionEnabled(
-                        id,
-                        'private',
-                    ),
-                };
-            });
-
-            res.json({
-                code: 0,
-                data: [...groupSessions, ...friendSessions],
-            });
+            const sessions = await loadHostSessions(ctx);
+            res.json({ code: 0, data: sessions });
         } catch (e) {
             ctx.logger.error('获取会话列表失败:', e);
             res.status(500).json({ code: -1, message: String(e) });
@@ -452,34 +419,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     /** 全部现有会话的订阅上限 */
     router.getNoAuth('/weibo/limits', async (_req, res) => {
         try {
-            const { groups, friends } =
-                await fetchNapCatSessions(ctx);
-            const sessions = [
-                ...groups.map((group) => {
-                    const id = String(group.group_id);
-                    return {
-                        type: 'group' as const,
-                        id,
-                        enabled:
-                            sessionConfigService.isSessionEnabled(
-                                id,
-                                'group',
-                            ),
-                    };
-                }),
-                ...friends.map((friend) => {
-                    const id = String(friend.user_id);
-                    return {
-                        type: 'private' as const,
-                        id,
-                        enabled:
-                            sessionConfigService.isSessionEnabled(
-                                id,
-                                'private',
-                            ),
-                    };
-                }),
-            ];
+            const sessions = await loadHostSessions(ctx);
             res.json({
                 code: 0,
                 data: weiboLimitService.view(sessions),
@@ -631,7 +571,53 @@ interface NapCatFriendInfo {
     remark?: string;
 }
 
-/** 拉取宿主的群/好友列表 (会话页与上限页共用) */
+interface HostSessionInfo {
+    type: SessionType;
+    id: string;
+    name: string;
+    enabled: boolean;
+    memberCount?: number;
+    maxMemberCount?: number;
+}
+
+/** 拉取宿主的群/好友列表并归一化 (会话页与上限页共用) */
+async function loadHostSessions(
+    ctx: NapCatPluginContext,
+): Promise<HostSessionInfo[]> {
+    const { groups, friends } = await fetchNapCatSessions(ctx);
+
+    const groupSessions = groups.map((group) => {
+        const id = String(group.group_id);
+        return {
+            type: 'group' as const,
+            id,
+            name: group.group_name,
+            enabled: sessionConfigService.isSessionEnabled(
+                id,
+                'group',
+            ),
+            memberCount: group.member_count,
+            maxMemberCount: group.max_member_count,
+        };
+    });
+
+    const friendSessions = friends.map((friend) => {
+        const id = String(friend.user_id);
+        return {
+            type: 'private' as const,
+            id,
+            name: friend.remark || friend.nickname,
+            enabled: sessionConfigService.isSessionEnabled(
+                id,
+                'private',
+            ),
+        };
+    });
+
+    return [...groupSessions, ...friendSessions];
+}
+
+/** 调用宿主的群 / 好友列表接口 (原始返回) */
 async function fetchNapCatSessions(
     ctx: NapCatPluginContext,
 ): Promise<{
