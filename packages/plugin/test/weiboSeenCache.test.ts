@@ -4,6 +4,7 @@ import {
     buildSeenBaseline,
     collectPageKeys,
     mergeSeenIds,
+    migrateLegacyLikeKeys,
     resolveSeenCache,
     SEEN_ID_LIMIT,
 } from '../src/weibo/seenCache';
@@ -58,6 +59,69 @@ describe('collectPageKeys', () => {
             NOW,
         );
         expect(keys).toEqual(['A', 'like:B:2026-10-24']);
+    });
+
+    it('相对标题解析后与绝对日期键一致', () => {
+        expect(
+            collectPageKeys(
+                [
+                    post('L', {
+                        title: { text: '她昨天21:42赞过的微博(3)' },
+                    }),
+                ],
+                NOW,
+            ),
+        ).toEqual(['like:L:2026-10-25']);
+        expect(
+            collectPageKeys(
+                [post('L', { title: { text: '她10-25赞过的微博(2)' } })],
+                NOW,
+            ),
+        ).toEqual(['like:L:2026-10-25']);
+    });
+});
+
+describe('migrateLegacyLikeKeys', () => {
+    it('按当前页把空日期键改写为解析后的日期键', () => {
+        expect(
+            migrateLegacyLikeKeys(
+                ['like:L:', 'A'],
+                [
+                    post('L', {
+                        title: { text: '她昨天21:42赞过的微博(3)' },
+                    }),
+                    post('A'),
+                ],
+                NOW,
+            ),
+        ).toEqual(['like:L:2026-10-25', 'A']);
+    });
+
+    it('不在当前页或已不再是点赞时保留旧键', () => {
+        expect(
+            migrateLegacyLikeKeys(['like:M:'], [post('A')], NOW),
+        ).toEqual(['like:M:']);
+        expect(
+            migrateLegacyLikeKeys(
+                ['like:A:'],
+                [post('A', { title: { text: '普通标题' } })],
+                NOW,
+            ),
+        ).toEqual(['like:A:']);
+    });
+
+    it('新旧键并存时去重', () => {
+        expect(
+            migrateLegacyLikeKeys(
+                ['like:L:', 'like:L:2026-10-25'],
+                [
+                    post('L', {
+                        title: { text: '她10-25赞过的微博(2)' },
+                    }),
+                ],
+                NOW,
+            ),
+        ).toEqual(['like:L:2026-10-25']);
     });
 });
 
@@ -147,6 +211,51 @@ describe('resolveSeenCache', () => {
                 seenIds: ['C', 'B'],
                 initialized: true,
                 watermark: 'C',
+            },
+            ALL,
+            NOW,
+        );
+        expect(result.posts).toEqual([]);
+        expect(result.reason).toBeNull();
+    });
+
+    it('升级首轮不重复推送已见点赞', () => {
+        const result = resolveSeenCache(
+            [
+                post('L', {
+                    title: { text: '她昨天21:42赞过的微博(3)' },
+                }),
+                post('NEW'),
+            ],
+            UID,
+            {
+                seenIds: ['like:L:', 'NEW'],
+                initialized: true,
+                watermark: 'like:L:',
+            },
+            ALL,
+            NOW,
+        );
+        expect(result.posts).toEqual([]);
+        expect(result.reason).toBeNull();
+        expect(result.nextSeenIds).toEqual([
+            'like:L:2026-10-25',
+            'NEW',
+        ]);
+    });
+
+    it('只有旧点赞键时零重叠判定不触发', () => {
+        const result = resolveSeenCache(
+            [
+                post('L', {
+                    title: { text: '她昨天21:42赞过的微博(3)' },
+                }),
+            ],
+            UID,
+            {
+                seenIds: ['like:L:'],
+                initialized: true,
+                watermark: 'like:L:',
             },
             ALL,
             NOW,

@@ -11,7 +11,7 @@ import {
     birthdayTitle,
 } from './birthday';
 import {
-    parseLikeDay,
+    resolveLikeMoment,
     resolvePostKind,
     resolveRootRetweet,
 } from './postKind';
@@ -161,11 +161,17 @@ export function buildPostCardHtml(
     const screenName =
         identity?.screenName ?? user?.screen_name ?? '微博用户';
     const avatar = identity?.avatar ?? pickAvatar(user);
-    const likeDay =
-        options.context?.likeDay ?? parseLikeDay(post);
+    const likeMoment =
+        kind === 'like'
+            ? resolveLikeMoment(post, options.context)
+            : null;
     const rawCreatedAt =
         kind === 'like'
-            ? formatLikeTime(likeDay, options.context?.fetchedAt)
+            ? formatLikeTime(
+                  likeMoment?.day,
+                  likeMoment?.clock,
+                  options.context?.fetchedAt,
+              )
             : formatWeiboTime(post.created_at);
     const createdAt =
         kind === 'birthday' && rawCreatedAt === '未知时间' ? '' : rawCreatedAt;
@@ -289,11 +295,9 @@ export function buildPostCardHtml(
         background: rgba(0, 0, 0, 0.55);
     }
     .retweet {
-        margin: 6px -18px; padding: 6px 36px 6px 80px;
+        margin: 6px -18px 0 -18px;
+        padding: 16px 36px 16px 80px;
         background: #f9f9f9;
-    }
-    .card.has-retweet .retweet {
-        margin-bottom: 0; padding-bottom: 16px;
     }
     .retweet .rt-user {
         font-size: 14px; font-weight: 600; color: #3b6ea5;

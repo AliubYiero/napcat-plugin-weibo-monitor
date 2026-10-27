@@ -1,7 +1,7 @@
 import { birthdayHref, birthdayTitle } from './birthday';
 import { buildPostUrl, pickAllPostImages } from './card';
 import {
-    parseLikeDay,
+    resolveLikeMoment,
     resolvePostKind,
     resolveRootRetweet,
 } from './postKind';
@@ -273,9 +273,12 @@ function buildLikeHeader(
     options: PresentationOptions,
 ): string {
     const name = options.identity?.screenName ?? '微博用户';
-    const likeDay =
-        options.context?.likeDay ?? parseLikeDay(post);
-    const time = formatLikeTime(likeDay, options.context?.fetchedAt);
+    const likeMoment = resolveLikeMoment(post, options.context);
+    const time = formatLikeTime(
+        likeMoment?.day,
+        likeMoment?.clock,
+        options.context?.fetchedAt,
+    );
     return `${time ? `[${time}] ` : ''}「${name}」点赞了微博`;
 }
 

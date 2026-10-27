@@ -14,7 +14,7 @@ import {
 } from '../../src/weibo/longText';
 import { getPostId } from '../../src/weibo/predicate';
 import {
-    parseLikeDay,
+    parseLikeMoment,
     resolvePostKind,
 } from '../../src/weibo/postKind';
 import {
@@ -119,12 +119,14 @@ async function main(): Promise<void> {
             const base = postFileBase(position, rawPost);
             const qualification = explainQualified(rawPost, env.uid);
             const kind = resolvePostKind(rawPost);
+            const likeMoment =
+                kind === 'like'
+                    ? parseLikeMoment(rawPost, now)
+                    : null;
             const context = {
                 kind,
-                likeDay:
-                    kind === 'like'
-                        ? parseLikeDay(rawPost, now)
-                        : null,
+                likeDay: likeMoment?.day ?? null,
+                likeClock: likeMoment?.clock ?? null,
                 fetchedAt: now,
             };
             const { post, status: longTextStatus } =

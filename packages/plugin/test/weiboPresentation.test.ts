@@ -545,6 +545,25 @@ describe('点赞动态', () => {
         );
     });
 
+    it('相对标题的点赞时分进入标题行', () => {
+        expect(
+            buildPushHeader(
+                {
+                    ...LIKE,
+                    title: { text: '她昨天21:42赞过的微博(3)' },
+                },
+                {
+                    context: {
+                        kind: 'like',
+                        likeDay: '2026-10-25',
+                        fetchedAt: Date.UTC(2026, 9, 26, 0),
+                    },
+                    identity: LIKE_OPTIONS.identity,
+                },
+            ),
+        ).toBe('[2026/10/25 21:42] 「博主」点赞了微博');
+    });
+
     it('原动态是转发时输出 //@ 理由与最原始博文', () => {
         const segments = buildTextPresentation(
             {

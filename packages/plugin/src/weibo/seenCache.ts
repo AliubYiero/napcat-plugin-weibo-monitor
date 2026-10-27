@@ -19,6 +19,9 @@ import type { WeiboCursor, WeiboPost } from './types';
 /** 单 uid 保留的已见键数量 */
 export const SEEN_ID_LIMIT = 100;
 
+const LEGACY_LIKE_KEY_RE = /^like:(.+):$/;
+const DATED_LIKE_KEY_RE = /^like:(.+):\d{4}-\d{2}-\d{2}$/;
+
 export type SeenCacheReason = 'baseline' | 'zero-overlap' | null;
 
 export interface SeenCacheResult {
@@ -96,6 +99,41 @@ export function buildSeenBaseline(
 }
 
 /**
+ * 把旧版「点赞日期解析失败」留下的空日期键按当前页改写。
+ *
+ * 旧键形如 `like:<id>:`, 新版相对日标题能解析出日期后, 同一条动态会
+ * 算出 `like:<id>:<YYYY-MM-DD>`; 不迁移会让升级首轮重复推送。
+ * 当前页找不到该 id、或当前页已不再是点赞时保留旧键; 新旧键并存时去重。
+ */
+export function migrateLegacyLikeKeys(
+    previous: readonly string[],
+    posts: readonly WeiboPost[],
+    now: number = Date.now(),
+): string[] {
+    const resolved = new Map<string, string>();
+    for (const post of posts) {
+        const key = getPostEventKey(post, now);
+        const matched = DATED_LIKE_KEY_RE.exec(key);
+        if (!matched) continue;
+        const id = matched[1];
+        if (!resolved.has(id)) resolved.set(id, key);
+    }
+
+    const migrated: string[] = [];
+    const seen = new Set<string>();
+    for (const key of previous) {
+        const legacy = LEGACY_LIKE_KEY_RE.exec(key);
+        const next = legacy
+            ? (resolved.get(legacy[1]) ?? key)
+            : key;
+        if (!next || seen.has(next)) continue;
+        seen.add(next);
+        migrated.push(next);
+    }
+    return migrated;
+}
+
+/**
  * 单轮选择。
  *
  * @param posts 原始首页列表, 顺序为「新 → 旧」
@@ -110,6 +148,11 @@ export function resolveSeenCache(
     now: number = Date.now(),
 ): SeenCacheResult {
     const currentKeys = collectPageKeys(posts, now);
+    const previousKeys = migrateLegacyLikeKeys(
+        cursor.seenIds,
+        posts,
+        now,
+    );
     const nextWatermark = currentKeys[0] ?? cursor.watermark;
 
     if (!cursor.initialized) {
@@ -123,7 +166,7 @@ export function resolveSeenCache(
         };
     }
 
-    const previous = new Set(cursor.seenIds);
+    const previous = new Set(previousKeys);
     if (
         cursor.seenIds.length > 0 &&
         currentKeys.length > 0 &&
@@ -139,7 +182,7 @@ export function resolveSeenCache(
         };
     }
 
-    const nextSeenIds = mergeSeenIds(currentKeys, cursor.seenIds);
+    const nextSeenIds = mergeSeenIds(currentKeys, previousKeys);
 
     const included: ClassifiedPost[] = [];
     for (const post of posts) {

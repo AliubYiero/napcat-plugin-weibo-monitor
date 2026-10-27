@@ -6,7 +6,13 @@
  * `analysis_extra.profile_insert_type` 或 `title.text` 的「赞过」标记识别。
  */
 
-import type { WeiboPost, WeiboPostKind, WeiboPostTitle } from './types';
+import type {
+    LikeMoment,
+    WeiboPost,
+    WeiboPostKind,
+    WeiboPostRenderContext,
+    WeiboPostTitle,
+} from './types';
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 const LIKE_INSERT_RE =
@@ -14,7 +20,14 @@ const LIKE_INSERT_RE =
 const LIKE_TITLE_RE = /赞过|赞了/;
 const EXPLICIT_DATE_RE =
     /(\d{4})\s*[年./-]\s*(\d{1,2})\s*[月./-]\s*(\d{1,2})/;
+const RELATIVE_DAY_RE =
+    /(今天|昨天|前天)\s*(?:(\d{1,2})\s*[:：]\s*(\d{1,2}))?/;
 const MONTH_DAY_RE = /(\d{1,2})\s*[月./-]\s*(\d{1,2})/;
+const RELATIVE_DAY_OFFSET: Record<string, number> = {
+    今天: 0,
+    昨天: 1,
+    前天: 2,
+};
 
 /** 兼容 boolean / number / string 三种布尔标记 */
 export function normalizeFlag(value: unknown): boolean {
@@ -84,15 +97,19 @@ export function resolvePostKind(post: WeiboPost): WeiboPostKind {
 }
 
 /**
- * 从点赞条目标题解析点赞日期, 返回 `YYYY-MM-DD`。
+ * 从点赞条目标题解析点赞时刻。
  *
- * 标题通常只有月日 (如「她10-24赞过的微博」), 年份取北京时间当前年;
- * 若月日落在今天之后, 视为去年。解析失败返回 null。
+ * 支持三种标题形态:
+ * - 完整日期 (`2024年2月29日` / `2026-10-24`)
+ * - 相对日 (`今天` / `昨天` / `前天`) 可带 `H:mm`
+ * - 仅月日 (`10-24`) 年份取北京时间当前年, 落在今天之后视为去年
+ *
+ * 相对日以首次拉取时间为基准 (固定北京时间); 解析失败返回 null。
  */
-export function parseLikeDay(
+export function parseLikeMoment(
     post: WeiboPost,
     now: number = Date.now(),
-): string | null {
+): LikeMoment | null {
     const title = titleText(post.title);
     if (!title) return null;
 
@@ -102,8 +119,22 @@ export function parseLikeDay(
         const month = Number(explicit[2]);
         const day = Number(explicit[3]);
         return isValidDay(year, month, day)
-            ? formatDay(year, month, day)
+            ? { day: formatDay(year, month, day), clock: null }
             : null;
+    }
+
+    const relative = RELATIVE_DAY_RE.exec(title);
+    if (relative) {
+        const offset = RELATIVE_DAY_OFFSET[relative[1]];
+        const shifted = shiftDay(beijingDateParts(now), offset);
+        return {
+            day: formatDay(
+                shifted.year,
+                shifted.month,
+                shifted.day,
+            ),
+            clock: parseClock(relative[2], relative[3]),
+        };
     }
 
     const monthDay = MONTH_DAY_RE.exec(title);
@@ -121,8 +152,44 @@ export function parseLikeDay(
         year -= 1;
     }
     return isValidDay(year, month, day)
-        ? formatDay(year, month, day)
+        ? { day: formatDay(year, month, day), clock: null }
         : null;
+}
+
+/**
+ * 从点赞条目标题解析去重用的日期 (不含时分)。
+ *
+ * 解析失败返回 null。
+ */
+export function parseLikeDay(
+    post: WeiboPost,
+    now: number = Date.now(),
+): string | null {
+    return parseLikeMoment(post, now)?.day ?? null;
+}
+
+/**
+ * 合并渲染上下文与标题解析结果。
+ *
+ * 上下文给出的日期/时分优先; 缺失项回退到标题解析。
+ */
+export function resolveLikeMoment(
+    post: WeiboPost,
+    context?: WeiboPostRenderContext | null,
+): LikeMoment | null {
+    const contextDay = context?.likeDay ?? null;
+    const contextClock = context?.likeClock ?? null;
+    if (contextDay !== null && contextClock !== null) {
+        return { day: contextDay, clock: contextClock };
+    }
+
+    const parsed = parseLikeMoment(post, context?.fetchedAt);
+    const day = contextDay ?? parsed?.day ?? null;
+    if (!day) return null;
+    return {
+        day,
+        clock: contextClock ?? parsed?.clock ?? null,
+    };
 }
 
 function titleText(title: WeiboPost['title']): string {
@@ -172,6 +239,33 @@ function beijingDateParts(now: number): {
     };
 }
 
+function shiftDay(
+    date: { year: number; month: number; day: number },
+    offset: number,
+): { year: number; month: number; day: number } {
+    const shifted = new Date(
+        Date.UTC(date.year, date.month - 1, date.day - offset),
+    );
+    return {
+        year: shifted.getUTCFullYear(),
+        month: shifted.getUTCMonth() + 1,
+        day: shifted.getUTCDate(),
+    };
+}
+
+function parseClock(
+    hourRaw: string | undefined,
+    minuteRaw: string | undefined,
+): string | null {
+    if (hourRaw === undefined || minuteRaw === undefined) {
+        return null;
+    }
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    if (hour > 23 || minute > 59) return null;
+    return `${pad(hour)}:${pad(minute)}`;
+}
+
 function isValidDay(year: number, month: number, day: number): boolean {
     if (month < 1 || month > 12 || day < 1) return false;
     const daysInMonth = new Date(
@@ -183,7 +277,11 @@ function isValidDay(year: number, month: number, day: number): boolean {
 function formatDay(year: number, month: number, day: number): string {
     return [
         String(year).padStart(4, '0'),
-        String(month).padStart(2, '0'),
-        String(day).padStart(2, '0'),
+        pad(month),
+        pad(day),
     ].join('-');
+}
+
+function pad(value: number): string {
+    return String(value).padStart(2, '0');
 }

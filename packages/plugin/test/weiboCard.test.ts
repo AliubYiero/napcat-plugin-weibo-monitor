@@ -223,9 +223,9 @@ describe('buildPostCardHtml', () => {
                 user: { screen_name: '原博主' },
             },
         });
-        expect(html).toContain(
-            'margin: 6px -18px; padding: 6px 36px 6px 80px;',
-        );
+        expect(html).toContain('margin: 6px -18px 0 -18px;');
+        expect(html).toContain('padding: 16px 36px 16px 80px;');
+        expect(html).toContain('.card.has-retweet { padding-bottom: 0; }');
         expect(html).toContain('background: #f9f9f9');
     });
 
@@ -688,6 +688,24 @@ describe('点赞卡片', () => {
         expect(html).toContain(
             '.card.has-retweet { padding-bottom: 0; }',
         );
+    });
+
+    it('相对标题的点赞时分进入信息栏', () => {
+        const html = buildPostCardHtml(
+            {
+                ...LIKE_POST,
+                title: { text: '她昨天21:42赞过的微博(3)' },
+            },
+            {
+                ...LIKE_OPTIONS,
+                context: {
+                    kind: 'like',
+                    likeDay: '2026-10-25',
+                    fetchedAt: Date.UTC(2026, 9, 26, 0),
+                },
+            },
+        );
+        expect(html).toContain('2026/10/25 21:42');
     });
 
     it('原微博放在转发区块, 不输出原微博链接', () => {

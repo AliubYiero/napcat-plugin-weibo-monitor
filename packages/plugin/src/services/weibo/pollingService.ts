@@ -387,6 +387,7 @@ class WeiboPollingService {
         const context = (item: (typeof selection.pinned)[number]) => ({
             kind: item.kind,
             likeDay: item.likeDay,
+            likeClock: item.likeClock,
             fetchedAt: now,
         });
 

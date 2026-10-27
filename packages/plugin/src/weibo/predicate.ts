@@ -14,6 +14,7 @@ import {
     isLikePost,
     isPinnedPost,
     parseLikeDay,
+    parseLikeMoment,
     resolvePostKind,
 } from './postKind';
 import type {
@@ -29,6 +30,8 @@ export interface ClassifiedPost {
     /** 去重键: 非点赞用动态 id, 点赞用 id + 点赞日期 */
     key: string;
     likeDay: string | null;
+    /** 点赞标题给出的时分 `HH:mm`; 缺失时为 null, 不进入去重键 */
+    likeClock: string | null;
     isAd: boolean;
     isPinned: boolean;
 }
@@ -84,13 +87,16 @@ export function classifyPost(
     if (kind !== 'like' && getUserUid(post) !== uid) return null;
     if (Number(post.mblogtype) !== 0) return null;
 
-    const likeDay = kind === 'like' ? parseLikeDay(post, now) : null;
+    const moment =
+        kind === 'like' ? parseLikeMoment(post, now) : null;
+    const likeDay = moment?.day ?? null;
     return {
         post,
         kind,
         id,
         key: kind === 'like' ? `like:${id}:${likeDay ?? ''}` : id,
         likeDay,
+        likeClock: moment?.clock ?? null,
         isAd: isAdPost(post),
         isPinned: isPinnedPost(post),
     };

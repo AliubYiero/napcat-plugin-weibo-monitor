@@ -6,6 +6,8 @@ import {
     isPinnedPost,
     normalizeFlag,
     parseLikeDay,
+    parseLikeMoment,
+    resolveLikeMoment,
     resolvePostKind,
     resolveRootRetweet,
 } from '../src/weibo/postKind';
@@ -80,6 +82,119 @@ describe('isLikePost', () => {
         expect(
             isLikePost(post({ title: { text: '普通标题' } })),
         ).toBe(false);
+    });
+});
+
+describe('parseLikeMoment', () => {
+    it('相对日取北京时间, 可带单位数时分', () => {
+        expect(
+            parseLikeMoment(
+                post({
+                    title: { text: '她昨天21:42赞过的微博(3)' },
+                }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-25', clock: '21:42' });
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她昨天0:10赞过的微博(4)' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-25', clock: '00:10' });
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她今天6:22赞过的微博' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-26', clock: '06:22' });
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她前天21:42赞过的微博' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-24', clock: '21:42' });
+    });
+
+    it('兼容全角冒号与无时分标题', () => {
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她昨天21：42赞过的微博' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-25', clock: '21:42' });
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她昨天赞过的微博' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-25', clock: null });
+    });
+
+    it('时分非法时只保留日期', () => {
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她昨天24:10赞过的微博' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-25', clock: null });
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她昨天21:60赞过的微博' } }),
+                NOW,
+            ),
+        ).toEqual({ day: '2026-10-25', clock: null });
+    });
+
+    it('相对日跨月与跨年', () => {
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她昨天21:42赞过的微博' } }),
+                Date.UTC(2026, 0, 1, 0),
+            ),
+        ).toEqual({ day: '2025-12-31', clock: '21:42' });
+        expect(
+            parseLikeMoment(
+                post({ title: { text: '她前天21:42赞过的微博' } }),
+                Date.UTC(2026, 2, 1, 0),
+            ),
+        ).toEqual({ day: '2026-02-27', clock: '21:42' });
+    });
+});
+
+describe('resolveLikeMoment', () => {
+    const relative = post({
+        title: { text: '她昨天21:42赞过的微博(3)' },
+    });
+
+    it('上下文未给日期时分时回退标题解析', () => {
+        expect(
+            resolveLikeMoment(relative, {
+                kind: 'like',
+                fetchedAt: Date.UTC(2026, 9, 26, 0),
+            }),
+        ).toEqual({
+            day: '2026-10-25',
+            clock: '21:42',
+        });
+    });
+
+    it('上下文日期与时分优先', () => {
+        expect(
+            resolveLikeMoment(relative, {
+                kind: 'like',
+                likeDay: '2026-10-20',
+                likeClock: '08:05',
+            }),
+        ).toEqual({ day: '2026-10-20', clock: '08:05' });
+    });
+
+    it('上下文只有日期时补标题时分', () => {
+        expect(
+            resolveLikeMoment(relative, {
+                kind: 'like',
+                likeDay: '2026-10-20',
+            }),
+        ).toEqual({ day: '2026-10-20', clock: '21:42' });
     });
 });
 
@@ -186,18 +301,24 @@ describe('resolveRootRetweet', () => {
 });
 
 describe('formatLikeTime', () => {
-    it('同日补时分秒, 异日只显示日期', () => {
+    it('标题时分优先, 同日无时分补拉取时间, 异日只显示日期', () => {
         expect(
-            formatLikeTime('2026-10-26', NOW),
+            formatLikeTime('2026-10-25', '21:42', NOW),
+        ).toBe('2026/10/25 21:42');
+        expect(
+            formatLikeTime('2026-10-26', null, NOW),
         ).toBe('2026/10/26 08:00:00');
         expect(
-            formatLikeTime('2026-10-23', NOW),
+            formatLikeTime('2026-10-23', null, NOW),
         ).toBe('2026/10/23');
     });
 
-    it('缺失或非法日期返回空串', () => {
-        expect(formatLikeTime(null, NOW)).toBe('');
-        expect(formatLikeTime('2026-13-01', NOW)).toBe('');
+    it('缺失或非法日期返回空串, 非法时分回退', () => {
+        expect(formatLikeTime(null, null, NOW)).toBe('');
+        expect(formatLikeTime('2026-13-01', null, NOW)).toBe('');
+        expect(
+            formatLikeTime('2026-10-26', '25:00', NOW),
+        ).toBe('2026/10/26 08:00:00');
     });
 });
 

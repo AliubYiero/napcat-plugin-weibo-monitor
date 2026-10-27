@@ -55,13 +55,15 @@ export function parseWeiboTimeMs(raw: string | undefined): number | null {
 }
 
 /**
- * 点赞日期 → 展示时间 (北京时间)
+ * 点赞时刻 → 展示时间 (北京时间)
  *
- * 点赞日期与拉取日期同天时, 用首次拉到的轮询时间补足时分秒;
- * 不同天只显示日期; 日期缺失或非法时返回空串 (不显示「未知时间」)。
+ * 标题给出时分时优先使用; 否则点赞日期与拉取日期同天时, 用首次拉到的
+ * 轮询时间补足时分秒; 不同天只显示日期。日期缺失或非法时返回空串
+ * (不显示「未知时间」)。
  */
 export function formatLikeTime(
     likeDay: string | null | undefined,
+    likeClock: string | null | undefined,
     fetchedAt: number | undefined,
 ): string {
     if (!likeDay) return '';
@@ -82,6 +84,10 @@ export function formatLikeTime(
         return '';
     }
 
+    const day = `${matched[1]}/${matched[2]}/${matched[3]}`;
+    const clock = normalizeClock(likeClock);
+    if (clock) return `${day} ${clock}`;
+
     const at = fetchedAt ?? Date.now();
     const date = new Date(at + BEIJING_OFFSET_MINUTES * 60_000);
     const today = [
@@ -90,9 +96,20 @@ export function formatLikeTime(
         pad(date.getUTCDate()),
     ].join('-');
 
-    const day = `${matched[1]}/${matched[2]}/${matched[3]}`;
     if (today !== likeDay) return day;
     return `${day} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+function normalizeClock(
+    raw: string | null | undefined,
+): string | null {
+    if (!raw) return null;
+    const matched = /^(\d{2}):(\d{2})$/.exec(raw);
+    if (!matched) return null;
+    const hour = Number(matched[1]);
+    const minute = Number(matched[2]);
+    if (hour > 23 || minute > 59) return null;
+    return raw;
 }
 
 function parseWeiboDate(raw: string): Date | null {

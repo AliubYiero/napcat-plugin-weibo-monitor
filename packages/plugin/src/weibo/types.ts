@@ -56,11 +56,25 @@ export type WeiboPostKind =
     | 'like'
     | 'birthday';
 
+/**
+ * 点赞时刻: 从点赞条目标题解析出的日期与可选时分。
+ *
+ * `day` 只用于去重键; `clock` 只用于展示, 不进入去重键。
+ */
+export interface LikeMoment {
+    /** 北京日历日 `YYYY-MM-DD` */
+    day: string;
+    /** 标题给出的 `HH:mm`, 缺失或非法时为 null */
+    clock: string | null;
+}
+
 /** 渲染时需要的分类上下文 */
 export interface WeiboPostRenderContext {
     kind: WeiboPostKind;
     /** 点赞日期 `YYYY-MM-DD`; 仅点赞条目使用 */
     likeDay?: string | null;
+    /** 点赞时分 `HH:mm`; 仅点赞条目使用, 缺失时回退拉取时间 */
+    likeClock?: string | null;
     /** 首次拉到该条目的轮询时间 (毫秒), 用于同日点赞补时分秒 */
     fetchedAt?: number;
 }
