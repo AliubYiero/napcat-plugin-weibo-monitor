@@ -30,6 +30,8 @@ NapCat 插件开发模板的文档导航。范式体系的定位、强度分级�
 | [adr/0008-poll-alignment.md](./adr/0008-poll-alignment.md) | 轮询对齐到本地墙钟刻度 (整除 60 进网格, 其余固定延迟) |
 | [adr/0009-seen-id-cache-and-content-types.md](./adr/0009-seen-id-cache-and-content-types.md) | 已见缓存、内容类型开关与点赞/生日/置顶规则 |
 | [adr/0010-daily-cookie-keepalive.md](./adr/0010-daily-cookie-keepalive.md) | 每日 Cookie 保活与登录态探测 |
+| [adr/0011-like-moment-and-dedup-key.md](./adr/0011-like-moment-and-dedup-key.md) | 点赞时刻解析与去重键 (相对日标题、时分只展示) |
+| [adr/0012-subscription-round-module.md](./adr/0012-subscription-round-module.md) | 单轮拉取抽为深模块 (暂停结算 + 单订阅投递) |
 
 判据与写法见 [development-pattern.md](./development-pattern.md) 的"架构决策记录 (ADR) 纪律"。
 

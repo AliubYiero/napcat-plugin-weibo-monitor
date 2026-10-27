@@ -16,45 +16,44 @@ import {
 } from 'vitest';
 import { weiboRuntime } from '../src/services/weibo/runtimeStatus';
 
-const mocks = vi.hoisted(() => ({
-    fetchMyMblog: vi.fn(),
-    ensureKeepAlive: vi.fn(async () => {}),
-    markInvalidAndNotify: vi.fn(async () => {}),
-    markRecovered: vi.fn(async () => {}),
-    pushPost: vi.fn(async () => {}),
-    cursorGet: vi.fn(() => undefined),
-    cursorSet: vi.fn(),
-    cursorSetPaused: vi.fn(),
-    isSessionEnabled: vi.fn(() => true),
-    updateMeta: vi.fn(),
-    config: {
-        weiboPollIntervalMinutes: 60,
-        weiboPushContentTypes: [
-            'repost',
-            'like',
-            'ad',
-            'birthday',
-        ] as const,
-    },
-    logger: {
-        log: vi.fn(),
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-    timers: new Map<string, unknown>(),
-    cookie: {
-        cookies: [{ name: 'SUB', value: 'token' }],
-        invalid: false,
-    },
-    monitor: {
+const mocks = vi.hoisted(() => {
+    const monitor = {
         uid: '1234567890',
         screenName: '博主',
         avatar: 'https://example.com/avatar.jpg',
         to: [{ id: '10086', type: 'group' }],
-    },
-}));
+    };
+
+    return {
+        monitor,
+        settlePause: vi.fn(() => [monitor]),
+        poll: vi.fn(),
+        ensureKeepAlive: vi.fn(async () => {}),
+        markInvalidAndNotify: vi.fn(async () => {}),
+        markRecovered: vi.fn(async () => {}),
+        config: {
+            weiboPollIntervalMinutes: 60,
+            weiboPushContentTypes: [
+                'repost',
+                'like',
+                'ad',
+                'birthday',
+            ] as const,
+        },
+        logger: {
+            log: vi.fn(),
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+        },
+        timers: new Map<string, unknown>(),
+        cookie: {
+            cookies: [{ name: 'SUB', value: 'token' }],
+            invalid: false,
+        },
+    };
+});
 
 vi.mock('../src/core/state', () => ({
     pluginState: {
@@ -72,33 +71,6 @@ vi.mock('../src/store/WeiboCookieStore', () => ({
     },
 }));
 
-vi.mock('../src/store/WeiboMonitorStore', () => ({
-    WeiboMonitorStore: {
-        getInstance: () => ({
-            list: () => [mocks.monitor],
-            get: (uid: string) =>
-                uid === mocks.monitor.uid ? mocks.monitor : undefined,
-            updateMeta: mocks.updateMeta,
-        }),
-    },
-}));
-
-vi.mock('../src/store/WeiboCursorStore', () => ({
-    WeiboCursorStore: {
-        getInstance: () => ({
-            get: mocks.cursorGet,
-            set: mocks.cursorSet,
-            setPaused: mocks.cursorSetPaused,
-        }),
-    },
-}));
-
-vi.mock('../src/services/sessionConfigService', () => ({
-    sessionConfigService: {
-        isSessionEnabled: mocks.isSessionEnabled,
-    },
-}));
-
 vi.mock('../src/services/weibo/cookieService', () => ({
     weiboCookieService: {
         ensureKeepAlive: mocks.ensureKeepAlive,
@@ -107,12 +79,11 @@ vi.mock('../src/services/weibo/cookieService', () => ({
     },
 }));
 
-vi.mock('../src/services/weibo/apiService', () => ({
-    weiboApiService: { fetchMyMblog: mocks.fetchMyMblog },
-}));
-
-vi.mock('../src/services/weibo/pushService', () => ({
-    weiboPushService: { pushPost: mocks.pushPost },
+vi.mock('../src/weibo/subscriptionRound', () => ({
+    createSubscriptionRound: () => ({
+        settlePause: mocks.settlePause,
+        poll: mocks.poll,
+    }),
 }));
 
 const { weiboPollingService } = await import(
@@ -133,8 +104,8 @@ function nextPollAt(): number | null {
     return weiboRuntime.nextPollAt;
 }
 
-function okResult() {
-    return { ok: true, posts: [], message: '', failure: null };
+function okOutcome() {
+    return { ok: true, failure: null, message: null };
 }
 
 async function startAndSettle(): Promise<void> {
@@ -146,13 +117,10 @@ beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 9, 22, 2, 6, 30));
 
-    mocks.fetchMyMblog.mockReset();
-    mocks.fetchMyMblog.mockResolvedValue(okResult());
-    mocks.cursorGet.mockReset();
-    mocks.cursorGet.mockReturnValue(undefined);
-    mocks.cursorSet.mockReset();
-    mocks.cursorSetPaused.mockReset();
-    mocks.updateMeta.mockReset();
+    mocks.settlePause.mockReset();
+    mocks.settlePause.mockReturnValue([mocks.monitor]);
+    mocks.poll.mockReset();
+    mocks.poll.mockResolvedValue(okOutcome());
     mocks.cookie = {
         cookies: [{ name: 'SUB', value: 'token' }],
         invalid: false,
@@ -180,36 +148,35 @@ afterEach(() => {
 describe('轮询定时器接线', () => {
     it('跨整点: 02:06:30 即时拉取后, 下一次落在 03:00', async () => {
         await startAndSettle();
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(1);
+        expect(mocks.poll).toHaveBeenCalledTimes(1);
         expect(nextPollAt()).toBe(at(22, 3, 0));
 
         await vi.advanceTimersByTimeAsync(53 * 60_000 + 30_000 - 1);
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(1);
+        expect(mocks.poll).toHaveBeenCalledTimes(1);
         expect(nextPollAt()).toBe(at(22, 3, 0));
 
         await vi.advanceTimersByTimeAsync(1);
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(2);
+        expect(mocks.poll).toHaveBeenCalledTimes(2);
         expect(nextPollAt()).toBe(at(22, 4, 0));
     });
 
     it('风控退避等满 30 分钟后重试, 恢复后回到网格', async () => {
-        mocks.fetchMyMblog
+        mocks.poll
             .mockReset()
             .mockResolvedValueOnce({
                 ok: false,
-                posts: [],
-                message: '风控',
                 failure: 'risk',
+                message: '风控',
             })
-            .mockResolvedValue(okResult());
+            .mockResolvedValue(okOutcome());
 
         await startAndSettle();
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(1);
+        expect(mocks.poll).toHaveBeenCalledTimes(1);
         expect(weiboRuntime.backoffUntil).toBe(at(22, 2, 36, 30));
         expect(nextPollAt()).toBe(at(22, 2, 36, 30));
 
         await vi.advanceTimersByTimeAsync(30 * 60_000);
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(2);
+        expect(mocks.poll).toHaveBeenCalledTimes(2);
         expect(weiboRuntime.backoffUntil).toBeNull();
         expect(nextPollAt()).toBe(at(22, 3, 0));
     });
@@ -219,7 +186,7 @@ describe('轮询定时器接线', () => {
 
         await startAndSettle();
 
-        expect(mocks.fetchMyMblog).not.toHaveBeenCalled();
+        expect(mocks.poll).not.toHaveBeenCalled();
         expect(mocks.markInvalidAndNotify).not.toHaveBeenCalled();
     });
 
@@ -229,16 +196,15 @@ describe('轮询定时器接线', () => {
 
         await startAndSettle();
 
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(1);
+        expect(mocks.poll).toHaveBeenCalledTimes(1);
         expect(mocks.markRecovered).toHaveBeenCalledTimes(1);
     });
 
     it('鉴权失败触发失效告警并中止本轮', async () => {
-        mocks.fetchMyMblog.mockResolvedValue({
+        mocks.poll.mockResolvedValue({
             ok: false,
-            posts: [],
-            message: '登录态已失效',
             failure: 'invalid',
+            message: '登录态已失效',
         });
 
         await startAndSettle();
@@ -258,7 +224,7 @@ describe('轮询定时器接线', () => {
         expect(nextPollAt()).toBe(at(22, 2, 10));
 
         await vi.advanceTimersByTimeAsync(3.5 * 60_000);
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(2);
+        expect(mocks.poll).toHaveBeenCalledTimes(2);
         expect(nextPollAt()).toBe(at(22, 2, 15));
     });
 
@@ -269,7 +235,7 @@ describe('轮询定时器接线', () => {
         weiboPollingService.requestImmediate();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(2);
+        expect(mocks.poll).toHaveBeenCalledTimes(2);
         expect(nextPollAt()).toBe(at(22, 3, 0));
     });
 
@@ -277,7 +243,7 @@ describe('轮询定时器接线', () => {
         mocks.config.weiboPollIntervalMinutes = 7;
         await startAndSettle();
 
-        expect(mocks.fetchMyMblog).toHaveBeenCalledTimes(1);
+        expect(mocks.poll).toHaveBeenCalledTimes(1);
         expect(nextPollAt()).toBe(at(22, 2, 13, 30));
     });
 });

@@ -15,11 +15,10 @@ import {
     normalizePollIntervalMinutes,
     type PollSchedule,
 } from '../../weibo/pollSchedule';
-import { findOwnerProfilePost } from '../../weibo/predicate';
 import {
-    buildSeenBaseline,
-    resolveSeenCache,
-} from '../../weibo/seenCache';
+    createSubscriptionRound,
+    type SubscriptionRound,
+} from '../../weibo/subscriptionRound';
 import type { WeiboPollingStatus } from '../../weibo/types';
 import { sessionConfigService } from '../sessionConfigService';
 import type { WeiboApiFailure } from './apiService';
@@ -32,16 +31,11 @@ const UID_INTERVAL_MS = 1500;
 const BACKOFF_MS = 30 * 60 * 1000;
 const DEFAULT_INTERVAL_MINUTES = 60;
 
-interface PollOutcome {
-    ok: boolean;
-    failure: WeiboApiFailure;
-    message: string | null;
-}
-
 class WeiboPollingService {
     private started = false;
     private inFlight = false;
     private timer: ReturnType<typeof setTimeout> | null = null;
+    private round: SubscriptionRound | null = null;
     /** 计划器只在启动与配置变更时重建, tick 收尾只调用它, 不做模式判断 */
     private planner: PollSchedule = createPollSchedule(
         DEFAULT_INTERVAL_MINUTES,
@@ -170,26 +164,8 @@ class WeiboPollingService {
             }
             weiboRuntime.backoffUntil = null;
 
-            const monitors = WeiboMonitorStore.getInstance().list();
-            if (monitors.length === 0) {
-                weiboRuntime.clearLastError();
-                return;
-            }
-
-            // 暂停拉取: 全部推送目标都被禁用的 uid 本轮不请求, 并持久化标记。
-            // 重新启用后的首轮由 pollMonitor 走「基线重建」, 不补发禁用期动态。
-            const cursorStore = WeiboCursorStore.getInstance();
-            const activeMonitors = monitors.filter((monitor) => {
-                const enabled = monitor.to.some((target) =>
-                    sessionConfigService.isSessionEnabled(
-                        target.id,
-                        target.type,
-                    ),
-                );
-                if (!enabled)
-                    cursorStore.setPaused(monitor.uid, true);
-                return enabled;
-            });
+            const round = this.getRound();
+            const activeMonitors = round.settlePause();
             if (activeMonitors.length === 0) {
                 weiboRuntime.clearLastError();
                 return;
@@ -205,17 +181,21 @@ class WeiboPollingService {
                 index += 1
             ) {
                 if (!this.started) break;
-                const outcome = await this.pollMonitor(
-                    activeMonitors[index],
-                );
+                const monitor = activeMonitors[index];
+                const outcome = await round.poll(monitor);
 
                 if (outcome.ok) {
+                    weiboRuntime.clearTargetError(monitor.uid);
                     succeeded += 1;
                     if (wasInvalid) {
                         await weiboCookieService.markRecovered();
                     }
-                } else if (outcome.message) {
-                    failureMessage = outcome.message;
+                } else {
+                    const message =
+                        outcome.message ??
+                        `微博接口失败 (${outcome.failure ?? '未知'})`;
+                    weiboRuntime.setTargetError(monitor.uid, message);
+                    failureMessage = message;
                 }
 
                 if (outcome.failure === 'invalid') {
@@ -279,154 +259,59 @@ class WeiboPollingService {
         );
     }
 
-    /** @returns 是否成功、失败类型与错误文案 */
-    private async pollMonitor(monitor: {
-        uid: string;
-        screenName: string;
-        avatar: string;
-    }): Promise<PollOutcome> {
-        const result = await weiboApiService.fetchMyMblog(
-            monitor.uid,
-        );
+    private getRound(): SubscriptionRound {
+        if (this.round) return this.round;
 
-        if (!result.ok) {
-            const message =
-                result.message ||
-                `微博接口失败 (${result.failure ?? '未知'})`;
-            weiboRuntime.setTargetError(monitor.uid, message);
-            pluginState.logger.warn(
-                `微博拉取失败 @${monitor.screenName} (${monitor.uid}): ${message}`,
-            );
-            return { ok: false, failure: result.failure, message };
-        }
-
-        weiboRuntime.clearTargetError(monitor.uid);
-
-        const now = Date.now();
-        const ownerPost = findOwnerProfilePost(
-            result.posts,
-            monitor.uid,
-        );
-        if (ownerPost?.user) {
-            const name =
-                ownerPost.user.screen_name ?? monitor.screenName;
-            const avatar =
-                ownerPost.user.avatar_large ??
-                ownerPost.user.avatar_hd ??
-                ownerPost.user.profile_image_url ??
-                monitor.avatar;
-            if (
-                name !== monitor.screenName ||
-                avatar !== monitor.avatar
-            ) {
-                WeiboMonitorStore.getInstance().updateMeta(
-                    monitor.uid,
-                    name,
-                    avatar,
+        this.round = createSubscriptionRound({
+            fetchPage: (uid) => weiboApiService.fetchMyMblog(uid),
+            pushPost: async (post, subscription, context) => {
+                await weiboPushService.pushPost(
+                    post,
+                    subscription,
+                    context,
                 );
-            }
-        }
-
-        const cursorStore = WeiboCursorStore.getInstance();
-        const cursor = cursorStore.get(monitor.uid);
-
-        // 暂停后重新启用的首轮: 用当前页全部条目重建已见缓存, 不推送。
-        // 与「基线重建」同语义——止损, 不补发禁用期的历史。
-        if (cursor?.paused) {
-            const baseline = buildSeenBaseline(result.posts, now);
-            cursorStore.set(monitor.uid, baseline);
-            cursorStore.setPaused(monitor.uid, false);
-            pluginState.logger.info(
-                `博主 ${monitor.uid} 已恢复推送, 已见缓存已重建 (不补发期间动态)`,
-            );
-            return { ok: true, failure: null, message: null };
-        }
-
-        const selection = resolveSeenCache(
-            result.posts,
-            monitor.uid,
-            {
-                seenIds: cursor?.seenIds ?? [],
-                initialized: cursor?.initialized ?? false,
-                watermark: cursor?.watermark ?? '',
             },
-            pluginState.config.weiboPushContentTypes,
-            now,
-        );
-
-        if (selection.reason === 'baseline') {
-            pluginState.logger.info(
-                `博主 ${monitor.uid} 首轮建立已见缓存 (不补发历史)`,
-            );
-        } else if (selection.reason === 'zero-overlap') {
-            pluginState.logger.warn(
-                `(；′⌒\`) 博主 ${monitor.uid} 的首页与已见缓存零重叠, 已静默重建`,
-            );
-        }
-
-        if (
-            !cursor ||
-            selection.initialized !== cursor.initialized ||
-            selection.nextWatermark !== cursor.watermark ||
-            !sameIds(selection.nextSeenIds, cursor.seenIds)
-        ) {
-            cursorStore.set(monitor.uid, {
-                watermark: selection.nextWatermark,
-                seenIds: selection.nextSeenIds,
-                initialized: selection.initialized,
-            });
-        }
-
-        const currentMonitor = WeiboMonitorStore.getInstance().get(
-            monitor.uid,
-        );
-        if (!currentMonitor) {
-            return { ok: true, failure: null, message: null };
-        }
-
-        const context = (
-            item: (typeof selection.pinned)[number],
-        ) => ({
-            kind: item.kind,
-            likeDay: item.likeDay,
-            likeClock: item.likeClock,
-            fetchedAt: now,
+            cursors: {
+                get: (uid) => WeiboCursorStore.getInstance().get(uid),
+                set: (uid, next) =>
+                    WeiboCursorStore.getInstance().set(uid, next),
+                setPaused: (uid, paused) =>
+                    WeiboCursorStore.getInstance().setPaused(
+                        uid,
+                        paused,
+                    ),
+            },
+            subscriptions: {
+                list: () => WeiboMonitorStore.getInstance().list(),
+                get: (uid) =>
+                    WeiboMonitorStore.getInstance().get(uid),
+                updateMeta: (uid, screenName, avatar) =>
+                    WeiboMonitorStore.getInstance().updateMeta(
+                        uid,
+                        screenName,
+                        avatar,
+                    ),
+            },
+            isSessionEnabled: (target) =>
+                sessionConfigService.isSessionEnabled(
+                    target.id,
+                    target.type,
+                ),
+            contentTypes: () =>
+                pluginState.config.weiboPushContentTypes,
+            now: () => Date.now(),
+            logger: {
+                debug: (...args) => pluginState.logger.debug(...args),
+                info: (...args) => pluginState.logger.info(...args),
+                warn: (...args) => pluginState.logger.warn(...args),
+            },
         });
 
-        for (const item of selection.pinned) {
-            await weiboPushService.pushPost(
-                item.post,
-                currentMonitor,
-                context(item),
-            );
-        }
-        for (const item of selection.posts) {
-            await weiboPushService.pushPost(
-                item.post,
-                currentMonitor,
-                context(item),
-            );
-        }
-
-        if (
-            selection.pinned.length === 0 &&
-            selection.posts.length === 0
-        ) {
-            pluginState.logger.debug(
-                `微博无新动态 @${currentMonitor.screenName}`,
-            );
-        }
-
-        return { ok: true, failure: null, message: null };
+        return this.round;
     }
 }
 
 export const weiboPollingService = new WeiboPollingService();
-
-function sameIds(left: string[], right: string[]): boolean {
-    if (left.length !== right.length) return false;
-    return left.every((id, index) => id === right[index]);
-}
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
